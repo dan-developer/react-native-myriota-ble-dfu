@@ -6,7 +6,7 @@ const App = () => {
     console.log(RNMyriotaBLEDFUModule)
   })
 
-  return <Counter />
+  return <Counter label='Greetings' />
 }
 
 export default App
