@@ -30,7 +30,8 @@
     "compile": "rm -rf lib && tsc -p .",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "prepare": "yarn compile",
-    "test": "jest"
+    "test": "jest",
+    "refresh": "rm -rf node_modules example/node_modules example/ios/Pods"
   },
   "devDependencies": {
     "@babel/core": "^7.16.12",
@@ -46,12 +47,14 @@
     "metro-react-native-babel-preset": "^0.67.0",
     "react": "^17.0.2",
     "react-native": "^0.67.1",
+    "react-native-ble-manager": "^8.4.4",
     "react-test-renderer": "^17.0.2",
     "typescript": "^4.5.5"
   },
   "peerDependencies": {
     "react": "*",
-    "react-native": "*"
+    "react-native": "*",
+    "react-native-ble-manager": "*"
   },
   "jest": {
     "preset": "react-native",
