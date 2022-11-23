@@ -2,7 +2,7 @@ import RNMyriotaBLEDFUModule, { MyriotaDFU } from 'react-native-myriota-ble-dfu'
 import React, { useEffect, useState } from 'react'
 import BLE from './modules/BLE'
 import { Peripheral } from 'react-native-ble-manager'
-import DeviceModal from './components/peripherals'
+import PeripheralView from './components/peripherals'
 
 const App = () => {
   const [peripherals, setPeriperals] = useState<Peripheral[]>([])
@@ -12,22 +12,6 @@ const App = () => {
     ble
       .requestPermissions()
       .then(() => ble.start())
-      // .then(() =>
-      //   ble.scanForPeripheral({
-      //     name: 'PLS9896B7',
-      //     serviceUUIDs: [BLE.UART_UUID],
-      //     timeout: 7,
-      //   })
-      // )
-      // .then((peripheral: Peripheral) => console.log('Found:', peripheral.name))
-      .then(async () => await ble.startScan({ serviceUUIDs: [BLE.UART_UUID] }))
-      // .then(() => {
-      //   console.log('here')
-      //   console.log(periperals)
-      //   periperals.forEach((peripheral: Peripheral) =>
-      //     console.log(peripheral.name)
-      //   )
-      // })
       .catch((error) => console.error(error))
 
     return () => {
@@ -37,7 +21,25 @@ const App = () => {
     }
   }, [])
 
-  return <DeviceModal devices={peripherals} />
+  return (
+    <PeripheralView
+      devices={peripherals}
+      connectToPeripheral={console.warn}
+      scan={() =>
+        ble
+          // .scanForPeripheral({
+          //   name: 'PLS9896B7',
+          //   serviceUUIDs: [BLE.UART_UUID],
+          //   timeout: 5,
+          // })
+          // .then((peripheral: Peripheral) =>
+          //   console.log('Found:', peripheral.name)
+          // )
+          .startScan({ serviceUUIDs: [BLE.UART_UUID] })
+          .catch((error) => console.error(error))
+      }
+    />
+  )
 }
 
 export default App

@@ -2,7 +2,6 @@ import React, { FC, useCallback } from 'react'
 import {
   FlatList,
   ListRenderItemInfo,
-  Modal,
   SafeAreaView,
   Text,
   StyleSheet,
@@ -11,87 +10,71 @@ import {
 import { Peripheral } from 'react-native-ble-manager'
 import {} from '../modules/BLE'
 
-type DeviceModalListItemProps = {
+type PeripheralViewListItemProps = {
   item: ListRenderItemInfo<Peripheral>
-  // connectToPeripheral: (device: Device) => void
-  // closeModal: () => void
+  connectToPeripheral: (peripheral: Peripheral) => void
 }
 
-type DeviceModalProps = {
+type PeripheralViewProps = {
   devices: Peripheral[]
-  // visible: boolean
-  // connectToPeripheral: (device: Peripheral) => void
-  // closeModal: () => void
+  scan: () => void
+  connectToPeripheral: (device: Peripheral) => void
 }
 
-const DeviceModalListItem: FC<DeviceModalListItemProps> = (props) => {
-  // const { item, connectToPeripheral, closeModal } = props
-  const { item } = props
+const PeripheralViewListItem: FC<PeripheralViewListItemProps> = (props) => {
+  const { item, connectToPeripheral } = props
 
-  // const connectAndCloseModal = useCallback(() => {
-  // connectToPeripheral(item.item)
-  // closeModal()
-  // }, [closeModal, connectToPeripheral, item.item])
+  const connect = useCallback(() => {
+    connectToPeripheral(item.item)
+  }, [connectToPeripheral, item.item])
 
   return (
-    <TouchableOpacity
-      // onPress={connectAndCloseModal}
-      style={modalStyle.ctaButton}
-    >
-      <Text style={modalStyle.ctaButtonText}>{item.item.name}</Text>
+    <TouchableOpacity onPress={connect} style={peripheralViewStyle.ctaButton}>
+      <Text style={peripheralViewStyle.ctaButtonText}>{item.item.name}</Text>
     </TouchableOpacity>
   )
 }
 
-const DeviceModal: FC<DeviceModalProps> = (props) => {
-  // const { devices, visible, connectToPeripheral, closeModal } = props
-  const { devices } = props
+const PeripheralView: FC<PeripheralViewProps> = (props) => {
+  const { devices, connectToPeripheral, scan } = props
 
-  const renderDeviceModalListItem = useCallback(
+  const renderPeripheralViewListItem = useCallback(
     (item: ListRenderItemInfo<Peripheral>) => {
       return (
-        <DeviceModalListItem
+        <PeripheralViewListItem
           item={item}
-          // connectToPeripheral={connectToPeripheral}
-          // closeModal={closeModal}
+          connectToPeripheral={connectToPeripheral}
         />
       )
     },
-    // [closeModal, connectToPeripheral]
-    []
+    [connectToPeripheral]
   )
 
   return (
-    <Modal
-      style={modalStyle.modalContainer}
-      animationType='slide'
-      transparent={false}
-      visible={true}
-    >
-      <SafeAreaView style={modalStyle.modalTitle}>
-        <Text style={modalStyle.modalTitleText}>
-          Tap on a device to connect
-        </Text>
-        <FlatList
-          contentContainerStyle={modalStyle.modalFlatlistContiner}
-          data={devices}
-          renderItem={renderDeviceModalListItem}
-        />
-      </SafeAreaView>
-    </Modal>
+    <SafeAreaView style={peripheralViewStyle.peripheralViewTitle}>
+      <TouchableOpacity style={peripheralViewStyle.ctaButton} onPress={scan}>
+        <Text style={peripheralViewStyle.ctaButtonText}>Scan</Text>
+      </TouchableOpacity>
+      <Text style={peripheralViewStyle.peripheralViewTitleText}>
+        Tap on a device to connect
+      </Text>
+      <FlatList
+        contentContainerStyle={
+          peripheralViewStyle.peripheralViewFlatlistContiner
+        }
+        data={devices}
+        renderItem={renderPeripheralViewListItem}
+      />
+    </SafeAreaView>
   )
 }
 
-const modalStyle = StyleSheet.create({
-  modalContainer: {
-    flex: 1,
-    backgroundColor: '#f2f2f2',
-  },
-  modalFlatlistContiner: {
+const peripheralViewStyle = StyleSheet.create({
+  peripheralViewFlatlistContiner: {
     flex: 1,
     justifyContent: 'center',
   },
-  modalCellOutline: {
+  peripheralViewCellOutline: {
     borderWidth: 1,
     borderColor: 'black',
     alignItems: 'center',
@@ -99,19 +82,20 @@ const modalStyle = StyleSheet.create({
     paddingVertical: 15,
     borderRadius: 8,
   },
-  modalTitle: {
+  peripheralViewTitle: {
     flex: 1,
-    backgroundColor: '#f2f2f2',
+    backgroundColor: '#191d21',
   },
-  modalTitleText: {
+  peripheralViewTitleText: {
     marginTop: 40,
     fontSize: 30,
     fontWeight: 'bold',
     marginHorizontal: 20,
     textAlign: 'center',
+    color: 'white',
   },
   ctaButton: {
-    backgroundColor: 'purple',
+    backgroundColor: '#fa0',
     justifyContent: 'center',
     alignItems: 'center',
     height: 50,
@@ -126,4 +110,4 @@ const modalStyle = StyleSheet.create({
   },
 })
 
-export default DeviceModal
+export default PeripheralView
