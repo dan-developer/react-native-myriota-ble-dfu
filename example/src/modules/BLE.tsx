@@ -1,59 +1,36 @@
-import BleManager, { Peripheral } from 'react-native-ble-manager'
-import { PERMISSIONS, requestMultiple } from 'react-native-permissions'
-import DeviceInfo from 'react-native-device-info'
-// import { useState } from 'react'
+import { Dispatch, SetStateAction } from 'react'
 import {
   NativeModules,
   NativeEventEmitter,
   Platform,
   PermissionsAndroid,
 } from 'react-native'
-import { useState } from 'react'
+import { PERMISSIONS, requestMultiple } from 'react-native-permissions'
+import DeviceInfo from 'react-native-device-info'
+import BleManager, { Peripheral } from 'react-native-ble-manager'
 
-// Android events
-// BleManagerDidUpdateState
-// BleManagerPeripheralDidBond
-// BleManagerStopScan
-//
-// iOS events
-// BleManagerDidUpdateValueForCharacteristic,
-// BleManagerStopScan,
-// BleManagerDiscoverPeripheral,
-// BleManagerConnectPeripheral,
-// BleManagerDisconnectPeripheral,
-// BleManagerDidUpdateState,
-// BleManagerCentralManagerWillRestoreState,
-// BleManagerDidUpdateNotificationStateFor
-
-interface ScanForPeripheralOptions {
-  name: string
-  serviceUUIDs: string[]
-  timeout?: number
-}
 interface ScanOptions {
   serviceUUIDs: string[]
   timeout?: number
 }
-interface BLEinterface {
-  peripherals: BleManager.Peripheral[]
-  requestPermissions: () => Promise<void>
-  scanForPeripheral: (
-    scanForPeripheralOptions: ScanForPeripheralOptions
-  ) => Promise<Peripheral>
-  scan: (scanOptions: ScanOptions) => Promise<void>
-  stopScan: () => Promise<void>
-  initBLE: () => Promise<void>
-  UART_SERVICE_UUID: string
+
+interface ScanForPeripheralOptions extends ScanOptions {
+  name: string
 }
 
-const BLEApi = (): BLEinterface => {
-  const BleManagerModule = NativeModules.BleManager
-  const bleManagerEmitter = new NativeEventEmitter(BleManagerModule)
-  const [peripherals, setPeriperals] = useState<Peripheral[]>([])
+class BLE {
+  public static UART_UUID = '6E400001-B5A3-F393-E0A9-E50E24DCCA9E'
+  public static UART_RX_UUID = '6E400002-B5A3-F393-E0A9-E50E24DCCA9E'
+  public static UART_TX_UUID = '6E400003-B5A3-F393-E0A9-E50E24DCCA9E'
+  private setPeripherals: Dispatch<SetStateAction<Peripheral[]>>
+  private bleManagerEmitter
 
-  // const peripherals = new Map()
+  constructor(setPeripherals: Dispatch<SetStateAction<Peripheral[]>>) {
+    this.bleManagerEmitter = new NativeEventEmitter(NativeModules.BleManager)
+    this.setPeripherals = setPeripherals
+  }
 
-  const requestPermissions = (): Promise<void> => {
+  public requestPermissions(): Promise<void> {
     return new Promise(async (success, error) => {
       if (Platform.OS === 'android') {
         await BleManager.enableBluetooth()
@@ -105,9 +82,37 @@ const BLEApi = (): BLEinterface => {
     })
   }
 
-  const scanForPeripheral = async (
+  public start(): Promise<void> {
+    return new Promise(async (success, error) => {
+      console.log('start: starting')
+      await BleManager.start({ showAlert: false })
+
+      const errorTimeout = setTimeout(() => {
+        error('Initialization error: Timed out starting BLE manager')
+      }, 5000)
+
+      const handleUpdateState = (state: any) => {
+        console.log('start: handleUpdateState', state)
+        if (state.state == 'on') {
+          console.log('start: started')
+          clearTimeout(errorTimeout)
+          success()
+          stateSubscription.remove()
+        }
+      }
+
+      const stateSubscription = this.bleManagerEmitter.addListener(
+        'BleManagerDidUpdateState',
+        handleUpdateState
+      )
+
+      BleManager.checkState()
+    })
+  }
+
+  public async scanForPeripheral(
     scanForPeripheralOptions: ScanForPeripheralOptions
-  ): Promise<Peripheral> => {
+  ): Promise<Peripheral> {
     return new Promise(async (success, error) => {
       console.log('scanForPeripheral: starting')
       let deviceFound = false
@@ -123,7 +128,7 @@ const BLEApi = (): BLEinterface => {
         await BleManager.stopScan()
       }, timeout * 1000)
 
-      const stopScanSubscription = bleManagerEmitter.addListener(
+      const stopScanSubscription = this.bleManagerEmitter.addListener(
         'BleManagerStopScan',
         async () => {
           console.log('scanForPeripheral: stopped')
@@ -136,7 +141,7 @@ const BLEApi = (): BLEinterface => {
         }
       )
 
-      const discoverSubscription = bleManagerEmitter.addListener(
+      const discoverSubscription = this.bleManagerEmitter.addListener(
         'BleManagerDiscoverPeripheral',
         async (peripheral: Peripheral) => {
           if (
@@ -160,26 +165,28 @@ const BLEApi = (): BLEinterface => {
     })
   }
 
-  const scan = async (scanOptions: ScanOptions): Promise<void> => {
+  public async startScan(scanOptions: ScanOptions): Promise<void> {
     return new Promise(async (success) => {
-      console.log('scan: starting')
-      setPeriperals(() => [])
+      console.log('startScan: starting')
+      this.setPeripherals(() => [])
 
-      const stopScanSubscription = bleManagerEmitter.addListener(
+      const stopScanSubscription = this.bleManagerEmitter.addListener(
         'BleManagerStopScan',
         async () => {
-          console.log('scan: stopped')
+          console.log('startScan: stopped')
           discoverSubscription.remove()
           stopScanSubscription.remove()
           success()
         }
       )
 
-      const discoverSubscription = bleManagerEmitter.addListener(
+      const discoverSubscription = this.bleManagerEmitter.addListener(
         'BleManagerDiscoverPeripheral',
         async (peripheral: Peripheral) => {
-          // console.log(peripheral)
-          setPeriperals((prevState: Peripheral[]) => [...prevState, peripheral])
+          this.setPeripherals((prevState: Peripheral[]) => [
+            ...prevState,
+            peripheral,
+          ])
         }
       )
 
@@ -187,15 +194,15 @@ const BLEApi = (): BLEinterface => {
 
       await BleManager.scan(scanOptions.serviceUUIDs, timeout, false)
 
-      console.log('scan: started')
+      console.log('startScan: started')
     })
   }
 
-  const stopScan = async () => {
+  public async stopScan(): Promise<void> {
     return new Promise<void>(async (success) => {
       console.log('stopScan: stoping')
 
-      const stopScanSubscription = bleManagerEmitter.addListener(
+      const stopScanSubscription = this.bleManagerEmitter.addListener(
         'BleManagerStopScan',
         async () => {
           console.log('stopScan: stopped')
@@ -207,46 +214,6 @@ const BLEApi = (): BLEinterface => {
       await BleManager.stopScan()
     })
   }
-
-  const initBLE = (): Promise<void> => {
-    return new Promise(async (success, error) => {
-      console.log('startBLE: starting')
-      await BleManager.start({ showAlert: false })
-
-      const errorTimeout = setTimeout(() => {
-        error('Initialization error: Timed out starting BLE manager')
-      }, 5000)
-
-      const handleUpdateState = (state: any) => {
-        console.log('handleUpdateState', state)
-        if (state.state == 'on') {
-          console.log('startBLE: started')
-          clearTimeout(errorTimeout)
-          success()
-          stateSubscription.remove()
-        }
-      }
-
-      const stateSubscription = bleManagerEmitter.addListener(
-        'BleManagerDidUpdateState',
-        handleUpdateState
-      )
-
-      BleManager.checkState()
-    })
-  }
-
-  const UART_SERVICE_UUID = '6E400001-B5A3-F393-E0A9-E50E24DCCA9E'
-
-  return {
-    peripherals,
-    requestPermissions,
-    scanForPeripheral,
-    scan,
-    stopScan,
-    initBLE,
-    UART_SERVICE_UUID,
-  }
 }
 
-export default BLEApi
+export default BLE

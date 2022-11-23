@@ -1,31 +1,26 @@
 import RNMyriotaBLEDFUModule, { MyriotaDFU } from 'react-native-myriota-ble-dfu'
-import React, { useEffect } from 'react'
-import BLEApi from './modules/BLE'
+import React, { useEffect, useState } from 'react'
+import BLE from './modules/BLE'
+import { Peripheral } from 'react-native-ble-manager'
 import DeviceModal from './components/peripherals'
 
 const App = () => {
-  const {
-    peripherals,
-    requestPermissions,
-    scanForPeripheral,
-    scan,
-    stopScan,
-    initBLE,
-    UART_SERVICE_UUID,
-  } = BLEApi()
+  const [peripherals, setPeriperals] = useState<Peripheral[]>([])
+  const ble = new BLE(setPeriperals)
 
   useEffect(() => {
-    requestPermissions()
-      .then(() => initBLE())
+    ble
+      .requestPermissions()
+      .then(() => ble.start())
       // .then(() =>
-      //   scanForPeripheral({
-      //     name: 'PLS9896B0',
-      //     serviceUUIDs: [UART_SERVICE_UUID],
-      //     timeout: 5,
+      //   ble.scanForPeripheral({
+      //     name: 'PLS9896B7',
+      //     serviceUUIDs: [BLE.UART_UUID],
+      //     timeout: 7,
       //   })
       // )
       // .then((peripheral: Peripheral) => console.log('Found:', peripheral.name))
-      .then(async () => await scan({ serviceUUIDs: [UART_SERVICE_UUID] }))
+      .then(async () => await ble.startScan({ serviceUUIDs: [BLE.UART_UUID] }))
       // .then(() => {
       //   console.log('here')
       //   console.log(periperals)
@@ -38,7 +33,7 @@ const App = () => {
     return () => {
       console.log('unmount')
 
-      stopScan()
+      ble.stopScan()
     }
   }, [])
 
