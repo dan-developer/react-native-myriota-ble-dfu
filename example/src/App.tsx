@@ -24,7 +24,10 @@ const App = () => {
   return (
     <PeripheralView
       devices={peripherals}
-      connectToPeripheral={console.warn}
+      connectToPeripheral={async (peripheral) => {
+        await ble.stopScan()
+        console.warn(peripheral.name)
+      }}
       scan={() =>
         ble
           // .scanForPeripheral({

@@ -227,6 +227,9 @@ class BLE {
 
   public async stopScan(): Promise<void> {
     return new Promise<void>(async (success) => {
+      if (!BLE.isScanning) {
+        return success()
+      }
       console.log('BLE stopScan: stoping')
 
       const stopScanSubscription = this.bleManagerEmitter.addListener(
