@@ -8,7 +8,6 @@ import {
   TouchableOpacity,
 } from 'react-native'
 import { Peripheral } from 'react-native-ble-manager'
-import {} from '../modules/BLE'
 
 type PeripheralViewListItemProps = {
   item: ListRenderItemInfo<Peripheral>

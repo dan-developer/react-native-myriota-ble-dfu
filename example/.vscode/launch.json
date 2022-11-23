@@ -1,0 +1,20 @@
+{
+    "configurations": [
+        {
+            "name": "Debug iOS Device",
+            "cwd": "${workspaceFolder}",
+            "type": "reactnative",
+            "request": "launch",
+            "platform": "ios",
+            "target": "device"
+        },
+        {
+            "name": "Debug Android Device",
+            "cwd": "${workspaceFolder}",
+            "type": "reactnative",
+            "request": "launch",
+            "platform": "android",
+            "target": "device"
+        }
+    ]
+}

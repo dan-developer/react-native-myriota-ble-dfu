@@ -22,12 +22,14 @@ class BLE {
   public static UART_UUID = '6E400001-B5A3-F393-E0A9-E50E24DCCA9E'
   public static UART_RX_UUID = '6E400002-B5A3-F393-E0A9-E50E24DCCA9E'
   public static UART_TX_UUID = '6E400003-B5A3-F393-E0A9-E50E24DCCA9E'
-  private setPeripherals: Dispatch<SetStateAction<Peripheral[]>>
   private bleManagerEmitter
+  private setPeripherals: Dispatch<SetStateAction<Peripheral[]>>
+  private static isScanning: boolean = false
 
   constructor(setPeripherals: Dispatch<SetStateAction<Peripheral[]>>) {
     this.bleManagerEmitter = new NativeEventEmitter(NativeModules.BleManager)
     this.setPeripherals = setPeripherals
+    console.log('BLE constructor')
   }
 
   public requestPermissions(): Promise<void> {
@@ -46,7 +48,7 @@ class BLE {
               buttonPositive: 'OK',
             }
           )
-          console.log('requestPermissions:', isGranted)
+          console.log('BLE requestPermissions:', isGranted)
 
           if (isGranted === PermissionsAndroid.RESULTS.GRANTED) {
             success()
@@ -67,7 +69,7 @@ class BLE {
             result['android.permission.ACCESS_FINE_LOCATION'] ===
               PermissionsAndroid.RESULTS.GRANTED
 
-          console.log('requestPermissions:', isGranted)
+          console.log('BLE requestPermissions:', isGranted)
 
           if (isGranted) {
             success()
@@ -76,7 +78,7 @@ class BLE {
           }
         }
       } else {
-        console.log('requestPermissions: iOS')
+        console.log('BLE requestPermissions: iOS')
         success()
       }
     })
@@ -84,7 +86,7 @@ class BLE {
 
   public start(): Promise<void> {
     return new Promise(async (success, error) => {
-      console.log('start: starting')
+      console.log('BLE start: starting')
       await BleManager.start({ showAlert: false })
 
       const errorTimeout = setTimeout(() => {
@@ -92,9 +94,9 @@ class BLE {
       }, 5000)
 
       const handleUpdateState = (state: any) => {
-        console.log('start: handleUpdateState', state)
+        console.log('BLE start: handleUpdateState', state)
         if (state.state == 'on') {
-          console.log('start: started')
+          console.log('BLE start: started')
           clearTimeout(errorTimeout)
           success()
           stateSubscription.remove()
@@ -114,7 +116,11 @@ class BLE {
     scanForPeripheralOptions: ScanForPeripheralOptions
   ): Promise<Peripheral> {
     return new Promise(async (success, error) => {
-      console.log('scanForPeripheral: starting')
+      if (BLE.isScanning) {
+        return error('Scan error: already scanning!')
+      }
+
+      console.log('BLE scanForPeripheral: starting')
       let deviceFound = false
 
       const timeout = scanForPeripheralOptions.timeout
@@ -131,7 +137,8 @@ class BLE {
       const stopScanSubscription = this.bleManagerEmitter.addListener(
         'BleManagerStopScan',
         async () => {
-          console.log('scanForPeripheral: stopped')
+          console.log('BLE scanForPeripheral: stopped')
+          BLE.isScanning = false
           discoverSubscription.remove()
           stopScanSubscription.remove()
           clearTimeout(errorTimeout)
@@ -158,54 +165,74 @@ class BLE {
       await BleManager.scan(
         scanForPeripheralOptions.serviceUUIDs,
         timeout,
-        false
+        false,
+        {
+          scanMode: 2,
+        }
       )
 
-      console.log('scanForPeripheral: started')
+      console.log('BLE scanForPeripheral: started')
+      BLE.isScanning = true
     })
   }
 
   public async startScan(scanOptions: ScanOptions): Promise<void> {
-    return new Promise(async (success) => {
-      console.log('startScan: starting')
+    return new Promise(async (success, error) => {
+      if (BLE.isScanning) {
+        return error('Scan error: already scanning!')
+      }
+
+      console.log('BLE startScan: starting')
       this.setPeripherals(() => [])
 
       const stopScanSubscription = this.bleManagerEmitter.addListener(
         'BleManagerStopScan',
         async () => {
-          console.log('startScan: stopped')
+          console.log('BLE startScan: stopped')
+          BLE.isScanning = false
           discoverSubscription.remove()
           stopScanSubscription.remove()
           success()
         }
       )
 
+      const isDuplicteDevice = (
+        devices: Peripheral[],
+        nextDevice: Peripheral
+      ) => devices.findIndex((device) => nextDevice.id === device.id) > -1
+
       const discoverSubscription = this.bleManagerEmitter.addListener(
         'BleManagerDiscoverPeripheral',
         async (peripheral: Peripheral) => {
-          this.setPeripherals((prevState: Peripheral[]) => [
-            ...prevState,
-            peripheral,
-          ])
+          this.setPeripherals((prevState: Peripheral[]) => {
+            if (!isDuplicteDevice(prevState, peripheral)) {
+              return [...prevState, peripheral]
+            }
+
+            return prevState
+          })
         }
       )
 
       const timeout = scanOptions.timeout ? scanOptions.timeout : 15
 
-      await BleManager.scan(scanOptions.serviceUUIDs, timeout, false)
+      await BleManager.scan(scanOptions.serviceUUIDs, timeout, false, {
+        scanMode: 2,
+      })
 
-      console.log('startScan: started')
+      console.log('BLE startScan: started')
+      BLE.isScanning = true
     })
   }
 
   public async stopScan(): Promise<void> {
     return new Promise<void>(async (success) => {
-      console.log('stopScan: stoping')
+      console.log('BLE stopScan: stoping')
 
       const stopScanSubscription = this.bleManagerEmitter.addListener(
         'BleManagerStopScan',
         async () => {
-          console.log('stopScan: stopped')
+          console.log('BLE stopScan: stopped')
           stopScanSubscription.remove()
           success()
         }
