@@ -8,7 +8,18 @@ import {
 import { PERMISSIONS, requestMultiple } from 'react-native-permissions'
 import DeviceInfo from 'react-native-device-info'
 import BleManager, { Peripheral } from 'react-native-ble-manager'
+import { Buffer } from 'buffer'
 
+// Events
+// BleManagerStopScan
+// BleManagerDidUpdateState
+// BleManagerDiscoverPeripheral
+// BleManagerDidUpdateValueForCharacteristic
+// BleManagerConnectPeripheral
+// BleManagerDisconnectPeripheral
+// BleManagerPeripheralDidBond
+// BleManagerCentralManagerWillRestoreState [iOS only]
+// BleManagerDidUpdateNotificationStateFor [iOS only]
 interface ScanOptions {
   serviceUUIDs: string[]
   timeout?: number
@@ -25,6 +36,7 @@ class BLE {
   private bleManagerEmitter
   private setPeripherals: Dispatch<SetStateAction<Peripheral[]>>
   private static isScanning: boolean = false
+  private connectedPeripheral: Peripheral = { id: '', rssi: 0, advertising: {} }
 
   constructor(setPeripherals: Dispatch<SetStateAction<Peripheral[]>>) {
     this.bleManagerEmitter = new NativeEventEmitter(NativeModules.BleManager)
@@ -243,6 +255,247 @@ class BLE {
 
       await BleManager.stopScan()
     })
+  }
+
+  public async isConnected(): Promise<boolean> {
+    return new Promise<boolean>(async (success) => {
+      const connected = await BleManager.isPeripheralConnected(
+        this.connectedPeripheral.id,
+        []
+      )
+
+      if (!connected || this.connectedPeripheral.id == '') {
+        return success(false)
+      }
+
+      success(true)
+    })
+  }
+
+  public async connect(peripheral: Peripheral): Promise<void> {
+    return new Promise<void>(async (success, error) => {
+      if (!peripheral.name) {
+        return error('BLE Connect: no name provided!')
+      }
+
+      const connected = await BleManager.isPeripheralConnected(
+        this.connectedPeripheral.id,
+        []
+      )
+
+      if (connected || this.connectedPeripheral.id != '') {
+        console.warn('BLE Connect: already connected!')
+        return success()
+      }
+
+      console.log('BLE Connect: connecting')
+
+      const connectSubscription = this.bleManagerEmitter.addListener(
+        'BleManagerConnectPeripheral',
+        async (event) => {
+          console.log(
+            'BLE connect: connected to',
+            event.peripheral,
+            event.status
+          )
+          this.connectedPeripheral = peripheral
+          connectSubscription.remove()
+
+          await BleManager.retrieveServices(peripheral.id).then(
+            (event) => {
+              console.log(
+                'BLE connect: services retrieved for ',
+                event.name,
+                event.services
+              )
+            },
+            (err) => {
+              error(
+                'BLE connect: error retrieving services for ' +
+                  peripheral.name +
+                  ': ' +
+                  err
+              )
+            }
+          )
+
+          await BleManager.startNotification(
+            peripheral.id,
+            BLE.UART_UUID,
+            BLE.UART_TX_UUID.toLowerCase()
+          ).then(success, error)
+        }
+      )
+
+      await BleManager.connect(peripheral.id).then(
+        () => {},
+        (err) => {
+          connectSubscription.remove()
+          error(
+            'BLE connect: error connecting to ' + peripheral.name + ': ' + err
+          )
+        }
+      )
+    })
+  }
+
+  public async disconnect(): Promise<void> {
+    return new Promise<void>(async (success, error) => {
+      const connected = await BleManager.isPeripheralConnected(
+        this.connectedPeripheral.id,
+        []
+      )
+
+      if (!connected && this.connectedPeripheral.id == '') {
+        console.warn('BLE Disconnect: already disconnected!')
+        return success()
+      }
+
+      console.log('BLE Connect: disconnecting')
+
+      const connectSubscription = this.bleManagerEmitter.addListener(
+        'BleManagerDisconnectPeripheral',
+        async (event) => {
+          console.log(
+            'BLE Disconnect: disconnected from ',
+            event.peripheral,
+            event.status
+          )
+          this.connectedPeripheral = { id: '', rssi: 0, advertising: {} }
+          connectSubscription.remove()
+          success()
+        }
+      )
+
+      await BleManager.disconnect(this.connectedPeripheral.id).then((err) => {
+        connectSubscription.remove()
+        error(
+          'BLE Disconnect: error disconnecting from ' +
+            this.connectedPeripheral.name +
+            ': ' +
+            err
+        )
+      })
+    })
+  }
+
+  public async write(
+    data: string,
+    serviceUUIDs: string,
+    characteristicUUID: string
+  ): Promise<void> {
+    return new Promise<void>(async (success, error) => {
+      const connected = await BleManager.isPeripheralConnected(
+        this.connectedPeripheral.id,
+        [serviceUUIDs]
+      )
+
+      if (!connected || this.connectedPeripheral.id == '') {
+        return error('BLE write: device not connected!')
+      }
+      console.log('BLE write: writting')
+
+      await BleManager.write(
+        this.connectedPeripheral.id,
+        serviceUUIDs,
+        Platform.OS !== 'android'
+          ? characteristicUUID
+          : characteristicUUID.toLowerCase(),
+        this.toBytes(data)
+        // ,245
+      ).then(
+        () => {
+          console.log('BLE write: done!')
+          success()
+        },
+        (err) => {
+          return error(
+            'BLE write: error writing to ' +
+              this.connectedPeripheral.id +
+              ': ' +
+              err
+          )
+        }
+      )
+    })
+  }
+
+  public async read(
+    serviceUUIDs: string,
+    characteristicUUID: string
+  ): Promise<any> {
+    return new Promise<any>(async (success, error) => {
+      const connected = await BleManager.isPeripheralConnected(
+        this.connectedPeripheral.id,
+        [serviceUUIDs]
+      )
+
+      if (!connected || this.connectedPeripheral.id == '') {
+        return error('BLE read: device not connected!')
+      }
+      console.log('BLE read: reading')
+
+      await BleManager.read(
+        this.connectedPeripheral.id,
+        serviceUUIDs,
+        Platform.OS !== 'android'
+          ? characteristicUUID
+          : characteristicUUID.toLowerCase()
+      ).then(
+        (data) => {
+          console.warn(data)
+          console.log('BLE read: done!')
+          success(data)
+        },
+        (err) => {
+          return error(
+            'BLE read: error reading to ' +
+              this.connectedPeripheral.id +
+              ': ' +
+              err
+          )
+        }
+      )
+    })
+  }
+
+  public async readNotify(
+    serviceUUIDs: string,
+    characteristicUUID: string
+  ): Promise<any> {
+    return new Promise<any>(async (success, error) => {
+      const connected = await BleManager.isPeripheralConnected(
+        this.connectedPeripheral.id,
+        [serviceUUIDs]
+      )
+
+      if (!connected || this.connectedPeripheral.id == '') {
+        return error('BLE read: device not connected!')
+      }
+      console.log('BLE read: reading')
+
+      const handleRX = (state: any) => {
+        console.log('BLE read: handleRX')
+        if (state.characteristicUUID == characteristicUUID) {
+          success(state.value)
+          RXSubscription.remove()
+        }
+      }
+
+      const RXSubscription = this.bleManagerEmitter.addListener(
+        'BleManagerDidUpdateValueForCharacteristic',
+        handleRX
+      )
+    })
+  }
+
+  private toBytes(text: string): number[] {
+    const buffer = Buffer.from(text, 'utf8')
+    const result = Array(buffer.length)
+    for (let i = 0; i < buffer.length; ++i) {
+      result[i] = buffer[i]
+    }
+    return result
   }
 }
 
