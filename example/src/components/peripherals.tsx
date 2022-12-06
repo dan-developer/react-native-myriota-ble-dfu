@@ -29,7 +29,9 @@ const PeripheralViewListItem: FC<PeripheralViewListItemProps> = (props) => {
 
   return (
     <TouchableOpacity onPress={connect} style={peripheralViewStyle.ctaButton}>
-      <Text style={peripheralViewStyle.ctaButtonText}>{item.item.name}</Text>
+      <Text style={peripheralViewStyle.ctaButtonText}>
+        {item.item.advertising.localName}
+      </Text>
     </TouchableOpacity>
   )
 }

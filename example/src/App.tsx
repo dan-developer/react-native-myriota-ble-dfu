@@ -39,8 +39,8 @@ const App = () => {
         ble
           .stopScan()
           .then(() => ble.connect(peripheral))
-          .then(() => ble.write('ping', BLE.UART_UUID, BLE.UART_RX_UUID))
-          .then(() => ble.readNotify(BLE.UART_UUID, BLE.UART_RX_UUID))
+          .then(() => ble.write('U', BLE.UART_UUID, BLE.UART_RX_UUID))
+          .then(() => ble.readNotify(BLE.UART_UUID, BLE.UART_TX_UUID))
           .then((readData) => {
             // const buffer = Buffer.from(data)
             // const sensorData = buffer.readUInt8(1, true);

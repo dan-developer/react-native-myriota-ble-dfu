@@ -475,8 +475,12 @@ class BLE {
       console.log('BLE read: reading')
 
       const handleRX = (state: any) => {
-        console.log('BLE read: handleRX')
-        if (state.characteristicUUID == characteristicUUID) {
+        console.log('BLE read: handleRX:', state)
+        if (
+          Platform.OS !== 'android'
+            ? state.characteristic == characteristicUUID
+            : state.characteristic == characteristicUUID.toLowerCase()
+        ) {
           success(state.value)
           RXSubscription.remove()
         }
