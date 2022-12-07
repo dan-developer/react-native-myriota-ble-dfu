@@ -22,11 +22,8 @@ import { Buffer } from 'buffer'
 // BleManagerDidUpdateNotificationStateFor [iOS only]
 interface ScanOptions {
   serviceUUIDs: string[]
+  name?: string
   timeout?: number
-}
-
-interface ScanForPeripheralOptions extends ScanOptions {
-  name: string
 }
 
 class BLE {
@@ -124,70 +121,6 @@ class BLE {
     })
   }
 
-  public async scanForPeripheral(
-    scanForPeripheralOptions: ScanForPeripheralOptions
-  ): Promise<Peripheral> {
-    return new Promise(async (success, error) => {
-      if (BLE.isScanning) {
-        return error('Scan error: already scanning!')
-      }
-
-      console.log('BLE scanForPeripheral: starting')
-      let deviceFound = false
-
-      const timeout = scanForPeripheralOptions.timeout
-        ? scanForPeripheralOptions.timeout
-        : 15
-
-      const errorTimeout = setTimeout(async () => {
-        error(
-          'Scan error: Timed out looking for ' + scanForPeripheralOptions.name
-        )
-        await BleManager.stopScan()
-      }, timeout * 1000)
-
-      const stopScanSubscription = this.bleManagerEmitter.addListener(
-        'BleManagerStopScan',
-        async () => {
-          console.log('BLE scanForPeripheral: stopped')
-          BLE.isScanning = false
-          discoverSubscription.remove()
-          stopScanSubscription.remove()
-          clearTimeout(errorTimeout)
-          if (!deviceFound) {
-            error('Scan error: device not found!')
-          }
-        }
-      )
-
-      const discoverSubscription = this.bleManagerEmitter.addListener(
-        'BleManagerDiscoverPeripheral',
-        async (peripheral: Peripheral) => {
-          if (
-            peripheral.name == scanForPeripheralOptions.name ||
-            peripheral.advertising.localName == scanForPeripheralOptions.name
-          ) {
-            deviceFound = true
-            await BleManager.stopScan()
-            success(peripheral)
-          }
-        }
-      )
-
-      await BleManager.scan(
-        scanForPeripheralOptions.serviceUUIDs,
-        timeout,
-        false,
-        {
-          scanMode: 2,
-        }
-      )
-
-      console.log('BLE scanForPeripheral: started')
-      BLE.isScanning = true
-    })
-  }
-
   public async startScan(scanOptions: ScanOptions): Promise<void> {
     return new Promise(async (success, error) => {
       if (BLE.isScanning) {
@@ -216,13 +149,27 @@ class BLE {
       const discoverSubscription = this.bleManagerEmitter.addListener(
         'BleManagerDiscoverPeripheral',
         async (peripheral: Peripheral) => {
-          this.setPeripherals((prevState: Peripheral[]) => {
-            if (!isDuplicteDevice(prevState, peripheral)) {
-              return [...prevState, peripheral]
-            }
+          if (scanOptions.name != undefined) {
+            if (peripheral.advertising.localName == scanOptions.name) {
+              this.setPeripherals((prevState: Peripheral[]) => {
+                if (!isDuplicteDevice(prevState, peripheral)) {
+                  return [...prevState, peripheral]
+                }
 
-            return prevState
-          })
+                return prevState
+              })
+
+              BleManager.stopScan()
+            }
+          } else {
+            this.setPeripherals((prevState: Peripheral[]) => {
+              if (!isDuplicteDevice(prevState, peripheral)) {
+                return [...prevState, peripheral]
+              }
+
+              return prevState
+            })
+          }
         }
       )
 

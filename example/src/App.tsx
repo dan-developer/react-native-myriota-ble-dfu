@@ -50,15 +50,11 @@ const App = () => {
       }}
       scan={() =>
         ble
-          // .scanForPeripheral({
-          //   name: 'MYRIOTA-DFU',
-          //   serviceUUIDs: [BLE.UART_UUID],
-          //   timeout: 5,
-          // })
-          // .then((peripheral: Peripheral) =>
-          //   console.log('Found:', peripheral.name)
-          // )
-          .startScan({ serviceUUIDs: [BLE.UART_UUID] })
+          .startScan({
+            serviceUUIDs: [BLE.UART_UUID],
+            // name: 'MYRIOTA-DFU',
+            // timeout: 5,
+          })
           .catch((error) => console.error(error))
       }
     />
