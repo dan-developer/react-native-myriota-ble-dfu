@@ -151,15 +151,11 @@ class BLE {
         async (peripheral: Peripheral) => {
           if (scanOptions.name != undefined) {
             if (peripheral.advertising.localName == scanOptions.name) {
-              this.setPeripherals((prevState: Peripheral[]) => {
-                if (!isDuplicteDevice(prevState, peripheral)) {
-                  return [...prevState, peripheral]
-                }
+              console.log('BLE startScan: found', scanOptions.name)
 
-                return prevState
-              })
+              this.setPeripherals([peripheral])
 
-              BleManager.stopScan()
+              await BleManager.stopScan()
             }
           } else {
             this.setPeripherals((prevState: Peripheral[]) => {
@@ -175,12 +171,15 @@ class BLE {
 
       const timeout = scanOptions.timeout ? scanOptions.timeout : 15
 
-      await BleManager.scan(scanOptions.serviceUUIDs, timeout, false, {
+      BleManager.scan(scanOptions.serviceUUIDs, timeout, false, {
         scanMode: 2,
-      })
-
-      console.log('BLE startScan: started')
-      BLE.isScanning = true
+      }).then(
+        () => {
+          console.log('BLE startScan: started')
+          BLE.isScanning = true
+        },
+        (err) => error('BLE startScan: ' + err)
+      )
     })
   }
 
@@ -221,8 +220,8 @@ class BLE {
 
   public async connect(peripheral: Peripheral): Promise<void> {
     return new Promise<void>(async (success, error) => {
-      if (!peripheral.name) {
-        return error('BLE Connect: no name provided!')
+      if (!peripheral.advertising.localName) {
+        return error('BLE Connect: invalid peripheral provided!')
       }
 
       const connected = await BleManager.isPeripheralConnected(
@@ -251,26 +250,42 @@ class BLE {
           await BleManager.retrieveServices(peripheral.id).then(
             (event) => {
               console.log(
-                'BLE connect: services retrieved for ',
+                'BLE connect: services retrieved for',
                 event.name,
                 event.services
               )
+              console.log('Requesting MTU...')
+              // BleManager.requestMTU(peripheral.id, 247).then(
+              //   (mtu) => {
+              //     console.log('MTU size changed to ' + mtu + ' bytes')
+              //     success()
+              //   },
+              //   (err) => {
+              //     error(
+              //       'BLE connect: error changing MTU services for' +
+              //         peripheral.advertising.localName +
+              //         ': ' +
+              //         err
+              //     )
+              //   }
+              // )
+              success()
             },
             (err) => {
               error(
-                'BLE connect: error retrieving services for ' +
-                  peripheral.name +
+                'BLE connect: error retrieving services for' +
+                  peripheral.advertising.localName +
                   ': ' +
                   err
               )
             }
           )
 
-          await BleManager.startNotification(
-            peripheral.id,
-            BLE.UART_UUID,
-            BLE.UART_TX_UUID.toLowerCase()
-          ).then(success, error)
+          // await BleManager.startNotification(
+          //   peripheral.id,
+          //   BLE.UART_UUID,
+          //   BLE.UART_TX_UUID.toLowerCase()
+          // ).then(success, error)
         }
       )
 
@@ -279,7 +294,10 @@ class BLE {
         (err) => {
           connectSubscription.remove()
           error(
-            'BLE connect: error connecting to ' + peripheral.name + ': ' + err
+            'BLE connect: error connecting to ' +
+              peripheral.advertising.localName +
+              ': ' +
+              err
           )
         }
       )
@@ -293,36 +311,34 @@ class BLE {
         []
       )
 
-      if (!connected && this.connectedPeripheral.id == '') {
+      console.log('BLE Connect: disconnecting', this.connectedPeripheral.id)
+
+      if (!connected || this.connectedPeripheral.id == '') {
         console.warn('BLE Disconnect: already disconnected!')
         return success()
       }
 
-      console.log('BLE Connect: disconnecting')
+      console.log('BLE Connect: disconnecting', this.connectedPeripheral.id)
 
-      const connectSubscription = this.bleManagerEmitter.addListener(
-        'BleManagerDisconnectPeripheral',
-        async (event) => {
+      await BleManager.disconnect(this.connectedPeripheral.id).then(
+        () => {
           console.log(
             'BLE Disconnect: disconnected from ',
-            event.peripheral,
-            event.status
+            this.connectedPeripheral.advertising.localName
           )
+
           this.connectedPeripheral = { id: '', rssi: 0, advertising: {} }
-          connectSubscription.remove()
           success()
+        },
+        (err) => {
+          error(
+            'BLE Disconnect: error disconnecting from ' +
+              this.connectedPeripheral.advertising.localName +
+              ': ' +
+              err
+          )
         }
       )
-
-      await BleManager.disconnect(this.connectedPeripheral.id).then((err) => {
-        connectSubscription.remove()
-        error(
-          'BLE Disconnect: error disconnecting from ' +
-            this.connectedPeripheral.name +
-            ': ' +
-            err
-        )
-      })
     })
   }
 
