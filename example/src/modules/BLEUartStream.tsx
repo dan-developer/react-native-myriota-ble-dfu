@@ -1,4 +1,4 @@
-import { Duplex, DuplexOptions } from 'readable-stream'
+import { Duplex, DuplexOptions } from 'stream'
 import BleManager, { Peripheral } from 'react-native-ble-manager'
 import {
   NativeModules,

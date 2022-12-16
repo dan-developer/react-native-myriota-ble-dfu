@@ -254,22 +254,25 @@ class BLE {
                 event.name,
                 event.services
               )
-              console.log('Requesting MTU...')
-              // BleManager.requestMTU(peripheral.id, 247).then(
-              //   (mtu) => {
-              //     console.log('MTU size changed to ' + mtu + ' bytes')
-              //     success()
-              //   },
-              //   (err) => {
-              //     error(
-              //       'BLE connect: error changing MTU services for' +
-              //         peripheral.advertising.localName +
-              //         ': ' +
-              //         err
-              //     )
-              //   }
-              // )
-              success()
+              if (Platform.OS == 'android') {
+                console.log('Requesting MTU...')
+                BleManager.requestMTU(peripheral.id, 247).then(
+                  (mtu) => {
+                    console.log('MTU size changed to ' + mtu + ' bytes')
+                    success()
+                  },
+                  (err) => {
+                    error(
+                      'BLE connect: error changing MTU services for' +
+                        peripheral.advertising.localName +
+                        ': ' +
+                        err
+                    )
+                  }
+                )
+              } else {
+                success()
+              }
             },
             (err) => {
               error(

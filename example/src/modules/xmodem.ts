@@ -1,6 +1,6 @@
 import EventEmitter from "events";
 import { Buffer } from "buffer";
-import { Duplex } from "readable-stream";
+import { Duplex } from "stream";
 
 class Xmodem extends EventEmitter {
   static XMODEM_START_BLOCK = 1;
