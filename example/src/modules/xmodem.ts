@@ -46,6 +46,11 @@ class Xmodem extends EventEmitter {
       current_block = Buffer.alloc(Xmodem.block_size);
     }
 
+    packagedBuffer.forEach((e, i) => {
+      console.log('Xmodem: packagedBuffer: index:', i, ' :', e.toString('hex'));
+    });
+
+
     /**
      * Ready to send event, buffer has been broken into individual blocks to be sent.
      * @event Xmodem#ready
@@ -55,6 +60,8 @@ class Xmodem extends EventEmitter {
 
 
     const sendData = function (data: any) {
+      console.info('sendData', data.toString('hex'), blockNumber, Xmodem.XMODEM_START_BLOCK, packagedBuffer.length, sent_eof);
+
       /*
        * Here we handle the beginning of the transmission
        * The receiver initiates the transfer by either calling
@@ -188,7 +195,6 @@ class Xmodem extends EventEmitter {
         blockData,
       ]);
       console.info("Xmodem: SENDBLOCK! Data length: " + blockData.length);
-      console.info('Xmodem: sendbuffer:', sendBuffer);
       if (mode === "crc") {
         let crcString = crc16xmodem(blockData).toString(16);
         // Need to avoid odd string for Buffer creation
@@ -214,6 +220,7 @@ class Xmodem extends EventEmitter {
         sendBuffer = Buffer.concat([sendBuffer, Buffer.from(crcCalcStr, "hex")]);
       }
       console.info("Xmodem: Sending buffer with total length: " + sendBuffer.length);
+      console.info('Xmodem: sendbuffer:', sendBuffer.toString('hex'));
       socket.write(sendBuffer);
     };
 
