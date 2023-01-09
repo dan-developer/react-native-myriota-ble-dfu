@@ -1,6 +1,7 @@
 import EventEmitter from "events";
 import { Buffer } from "buffer";
-import { Duplex } from "stream";
+import MyriotaUpdater from './MyriotaUpdater'
+
 
 class Xmodem extends EventEmitter {
   static XMODEM_START_BLOCK = 1;
@@ -16,7 +17,7 @@ class Xmodem extends EventEmitter {
     super();
   }
 
-  send(socket: Duplex, dataBuffer: Buffer) {
+  async send(socket: MyriotaUpdater, dataBuffer: Buffer) {
     let blockNumber = Xmodem.XMODEM_START_BLOCK;
     const packagedBuffer = new Array();
     let current_block = Buffer.alloc(Xmodem.block_size);
@@ -30,7 +31,7 @@ class Xmodem extends EventEmitter {
     const FILLER = 0x1a;
     const CRC_MODE = 0x43;
 
-    console.log('Xmodem: dataBuffer.length', dataBuffer.length);
+    console.info('Xmodem: dataBuffer.length', dataBuffer.length);
 
     // FILLER
     for (let i = 0; i < Xmodem.XMODEM_START_BLOCK; i++) {
@@ -46,9 +47,9 @@ class Xmodem extends EventEmitter {
       current_block = Buffer.alloc(Xmodem.block_size);
     }
 
-    packagedBuffer.forEach((e, i) => {
-      console.log('Xmodem: packagedBuffer: index:', i, ' :', e.toString('hex'));
-    });
+    // packagedBuffer.forEach((e, i) => {
+    //   console.info('Xmodem: packagedBuffer: index:', i, ' :', e.toString('hex'));
+    // });
 
 
     /**
@@ -59,8 +60,8 @@ class Xmodem extends EventEmitter {
     _self.emit("ready", packagedBuffer.length - 1); // We don't count the filler
 
 
-    const sendData = function (data: any) {
-      console.info('sendData', data.toString('hex'), blockNumber, Xmodem.XMODEM_START_BLOCK, packagedBuffer.length, sent_eof);
+    const sendData = async (data: any) => {
+      // console.info('sendData', data.toString('hex'), blockNumber, Xmodem.XMODEM_START_BLOCK, packagedBuffer.length, sent_eof);
 
       /*
        * Here we handle the beginning of the transmission
@@ -135,12 +136,12 @@ class Xmodem extends EventEmitter {
             sent_eof = true;
             console.info("Xmodem: WE HAVE RUN OUT OF STUFF TO SEND, EOT EOT!");
             _self.emit("status", { action: "send", signal: "EOT" });
-            socket.write(Buffer.from([EOT]));
+            await socket.write(Buffer.from([EOT]));
           } else {
             // We are finished!
             console.info("Xmodem: [SEND] - Finished!");
             _self.emit("stop", 0);
-            socket.removeListener("data", sendData);
+            // socket.removeListener("data", sendData);
           }
         }
       } else if (data[0] === NAK && blockNumber > Xmodem.XMODEM_START_BLOCK) {
@@ -149,7 +150,7 @@ class Xmodem extends EventEmitter {
             "Xmodem: [SEND] - Resending EOT, because receiver responded with NAK."
           );
           _self.emit("status", { action: "send", signal: "EOT" });
-          socket.write(Buffer.from([EOT]));
+          await socket.write(Buffer.from([EOT]));
         } else {
           console.info(
             "Xmodem: [SEND] - Packet corruption detected, resending previous block."
@@ -181,8 +182,8 @@ class Xmodem extends EventEmitter {
 
 
 
-    const sendBlock = function (
-      socket: Duplex,
+    const sendBlock = async function (
+      socket: MyriotaUpdater,
       blockNr: number,
       blockData: any,
       mode: string
@@ -221,12 +222,12 @@ class Xmodem extends EventEmitter {
       }
       console.info("Xmodem: Sending buffer with total length: " + sendBuffer.length);
       console.info('Xmodem: sendbuffer:', sendBuffer.toString('hex'));
-      socket.write(sendBuffer);
+      await socket.write(sendBuffer);
+
     };
 
 
-
-    socket.on("data", sendData);
+    socket.addListener("data", sendData);
   }
 
 }

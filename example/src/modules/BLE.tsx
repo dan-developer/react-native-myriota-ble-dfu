@@ -153,7 +153,9 @@ class BLE {
             if (peripheral.advertising.localName == scanOptions.name) {
               console.log('BLE startScan: found', scanOptions.name)
 
-              this.setPeripherals([peripheral])
+              this.setPeripherals(() => {
+                return [peripheral]
+              })
 
               await BleManager.stopScan()
             }
@@ -314,19 +316,17 @@ class BLE {
         []
       )
 
-      console.log('BLE Connect: disconnecting', this.connectedPeripheral.id)
-
       if (!connected || this.connectedPeripheral.id == '') {
         console.warn('BLE Disconnect: already disconnected!')
         return success()
       }
 
-      console.log('BLE Connect: disconnecting', this.connectedPeripheral.id)
+      console.log('BLE disonnect: disconnecting', this.connectedPeripheral.id)
 
-      await BleManager.disconnect(this.connectedPeripheral.id).then(
+      await BleManager.disconnect(this.connectedPeripheral.id, true).then(
         () => {
           console.log(
-            'BLE Disconnect: disconnected from ',
+            'BLE disconnect: disconnected from ',
             this.connectedPeripheral.advertising.localName
           )
 
@@ -335,7 +335,7 @@ class BLE {
         },
         (err) => {
           error(
-            'BLE Disconnect: error disconnecting from ' +
+            'BLE disconnect: error disconnecting from ' +
               this.connectedPeripheral.advertising.localName +
               ': ' +
               err

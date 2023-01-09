@@ -1,16 +1,44 @@
 {
-    "editor.formatOnSave": true,
-    "[javascript]": {
-        "editor.defaultFormatter": "esbenp.prettier-vscode"
+  // General editor config
+  "editor.formatOnSave": true,
+  "editor.wordWrap": "wordWrapColumn",
+  "editor.wordWrapColumn": 120,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
+  "files.insertFinalNewline": true,
+  "terminal.integrated.scrollback": 10000,
+
+  // Todo tree settings
+  "todo-tree.general.tags": ["BUG", "HACK", "FIXME", "TODO", "INFO"],
+  "todo-tree.highlights.defaultHighlight": {
+    "type": "tag-and-comment",
+    "foreground": "#000000"
+  },
+  "todo-tree.highlights.customHighlight": {
+    "TODO": {
+      "background": "#ffee00"
     },
-    "[typescriptreact]": {
-        "editor.defaultFormatter": "esbenp.prettier-vscode"
+    "FIXME": {
+      "background": "#ff0000"
     },
-    "[jsonc]": {
-        "editor.defaultFormatter": "esbenp.prettier-vscode"
-    },
-    "[json]": {
-        "editor.defaultFormatter": "esbenp.prettier-vscode"
-    },
-    "files.insertFinalNewline": true
+    "INFO": {
+      "background": "#ff9900"
+    }
+  },
+  "todo-tree.regex.regex": "(//|#|<!--|;|/\\*|\\*|/\\*\\*|^|^[ \\t]*(-|\\d+.))\\s*($TAGS)",
+
+  // Prettier auto format config
+  "prettier.singleQuote": true,
+  "prettier.printWidth": 120,
+  "[javascript]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[typescriptreact]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[jsonc]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  },
+  "[json]": {
+    "editor.defaultFormatter": "esbenp.prettier-vscode"
+  }
 }

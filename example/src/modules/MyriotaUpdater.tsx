@@ -1,13 +1,11 @@
-// import { Duplex, DuplexOptions } from 'stream'
 import BleManager, { Peripheral } from 'react-native-ble-manager'
 import {
   NativeModules,
   NativeEventEmitter,
   EmitterSubscription,
 } from 'react-native'
+import EventEmitter from 'events'
 import { Buffer } from 'buffer'
-import Xmodem from './xmodem'
-// import ReactNativeBlobUtil from 'react-native-blob-util'
 
 /**
  * Sleep for ms milliseconds
@@ -16,29 +14,114 @@ import Xmodem from './xmodem'
  */
 const sleep = (ms: number) => new Promise((success) => setTimeout(success, ms))
 
-class BLEUartStream {
+class RingBuffer {
+  capacity: number
+  buffer: Buffer
+  numItems: number
+  head: number
+  tail: number
+
+  constructor(capacity: number) {
+    this.capacity = capacity
+    this.buffer = Buffer.alloc(capacity)
+    this.buffer.fill(0)
+    this.numItems = 0
+
+    // Points to the index where the next index will be read/removed
+    this.head = 0
+    // Points to the index where the next item will be entered
+    this.tail = 0
+  }
+
+  public clear() {
+    this.head = this.tail = this.numItems = 0
+  }
+
+  public available(): number {
+    const delta = this.tail - this.head
+
+    if (delta < 0) {
+      return 0
+    }
+
+    return delta
+  }
+
+  public dequeue(num: number): Buffer {
+    // check for empty buffer
+    if (this.numItems === 0) {
+      return Buffer.alloc(0)
+    }
+
+    // find the distance from head to tail
+    let headTailDist = this.available()
+
+    const readBuffSize = Math.min(num, headTailDist)
+
+    // Allocate less if we hit tail before n
+    const readBuff = Buffer.alloc(readBuffSize)
+
+    // loop until we hit data length
+    for (let i = 0; i < num; ++i) {
+      readBuff[i] = this.buffer[this.head]
+      --this.numItems
+      this.head = this.nextIndex(this.head + 1) % this.capacity
+
+      // check if we've reached the tail
+      if (this.head === this.tail) {
+        return readBuff
+      }
+    }
+    // console.log('dequeueing:', readBuff)
+
+    return readBuff
+  }
+
+  public enqueue(data: Buffer): void {
+    // console.log('enqueueing:', data)
+    for (let i = 0; i < data.length; ++i) {
+      // write the data to the tail
+      this.buffer[this.tail] = data[i]
+
+      this.tail = this.nextIndex(this.tail)
+
+      // if the buffer is at capacity, move foward the head
+      if (this.numItems === this.capacity) {
+        this.head = this.nextIndex(this.head)
+      } else {
+        ++this.numItems
+      }
+    }
+    // console.log('buffer:', this.buffer)r
+  }
+
+  private nextIndex(ptr: number): number {
+    return (ptr + 1) % this.capacity
+  }
+}
+
+class MyriotaUpdater extends EventEmitter {
   private bleManagerEmitter
   private peripheral: Peripheral
   private serviceUUID: string
   private TXcharacteristicUUID: string
   private RXcharacteristicUUID: string
   private RXSubscription: EmitterSubscription | undefined
-  private RXBuffer: Buffer
+  private RXBuffer: RingBuffer
 
   constructor(
     peripheral: Peripheral,
     serviceUUID: string,
     TXcharacteristicUUID: string,
     RXcharacteristicUUID: string
-    // options?: DuplexOptions
   ) {
-    // super(options)
+    super()
     this.peripheral = peripheral
     this.serviceUUID = serviceUUID
     this.TXcharacteristicUUID = TXcharacteristicUUID
     this.RXcharacteristicUUID = RXcharacteristicUUID
     this.bleManagerEmitter = new NativeEventEmitter(NativeModules.BleManager)
-    this.RXBuffer = Buffer.from([])
+    this.RXBuffer = new RingBuffer(300)
   }
 
   public open(): Promise<void> {
@@ -52,26 +135,30 @@ class BLEUartStream {
           this.RXSubscription = this.bleManagerEmitter.addListener(
             'BleManagerDidUpdateValueForCharacteristic',
             (state) => {
-              // console.log(
-              //   'BLEUartStream: RXSubscription: characteristic',
-              //   state
-              // )
-              if (
-                state.characteristic == this.TXcharacteristicUUID
-                // && peripheral.id == this.peripheral.id
-              ) {
-                this.RXBuffer = Buffer.concat([
-                  this.RXBuffer,
-                  Buffer.from(state.value),
-                ])
+              if (state.characteristic == this.TXcharacteristicUUID) {
+                // console.log('RXSubscription new value:', state.value)
+                // console.log(
+                //   'RXSubscription new value Buffer:',
+                //   Buffer.from(state.value)
+                // )
+                this.RXBuffer.enqueue(Buffer.from(state.value))
+                this.emit('data', Buffer.from(state.value))
               }
             }
           )
           success()
         },
-        (err) => error('BLEUartStream startNotification: ' + err)
+        (err) => error('MyriotaUpdater startNotification: ' + err)
       )
     })
+  }
+
+  // public clear() {
+  //   this.RXBuffer.clear()
+  // }
+
+  public available() {
+    return this.RXBuffer.available()
   }
 
   public close(): Promise<void> {
@@ -100,34 +187,21 @@ class BLEUartStream {
     return result
   }
 
-  public async writeTo(buffer: Buffer): Promise<void> {
+  public async write(buffer: Buffer): Promise<void> {
     return new Promise<void>(async (success, error) => {
-      // const connected = await BleManager.isPeripheralConnected(
-      //   this.connectedPeripheral.id,
-      //   [serviceUUIDs]
-      // )
-
-      // if (!connected || this.connectedPeripheral.id == '') {
-      //   return error('BLEUartStream write: device not connected!')
-      // }
-      // console.log('BLEUartStream write: writting')
-
       await BleManager.write(
         this.peripheral.id,
         this.serviceUUID,
-        // Platform.OS !== 'android'
-        //   ? characteristicUUID
         this.RXcharacteristicUUID,
-        this.toBytes(buffer)
-        // ,245
+        this.toBytes(buffer),
+        245
       ).then(
         () => {
-          // console.log('BLEUartStream write: done!')
           success()
         },
         (err) => {
           return error(
-            'BLEUartStream write: error writing to ' +
+            'MyriotaUpdater write: error writing to ' +
               this.peripheral.id +
               ': ' +
               err
@@ -137,91 +211,73 @@ class BLEUartStream {
     })
   }
 
-  public readTo(): Buffer {
-    // console.log('BLEUartStream read2: reading')
-    const ret = this.RXBuffer
-    this.RXBuffer = Buffer.from([])
-    return ret
+  public read(): Buffer {
+    return this.RXBuffer.dequeue(1)
   }
 
-  public readLine(endLine: Buffer = Buffer.from('\n')): Buffer {
-    // console.log('BLEUartStream readLine: reading')
-    const firstNewLineIndex = this.RXBuffer.indexOf(endLine) + endLine.length
-    // console.log('prev', this.RXBuffer)
-    const ret = this.RXBuffer.slice(0, firstNewLineIndex)
-    this.RXBuffer = this.RXBuffer.slice(firstNewLineIndex)
-    return ret
+  public readAll(): Buffer {
+    return this.RXBuffer.dequeue(this.RXBuffer.available())
   }
 
-  // public async xmodemSend(
-  //   buf: Buffer,
-  //   file: string,
-  //   readyCb: Function,
-  //   sentCb: Function
-  // ) {
-  //   return new Promise<void>(async (success, error) => {
-  //     try {
+  public async readUntil(
+    timeout: number = 1000,
+    endLine: Buffer = Buffer.from('\n')
+  ): Promise<Buffer> {
+    let ret: Buffer = Buffer.alloc(0)
+    let currentBuf = this.read()
+    let hasTimedOut = false
 
-  //       /* Create an Xmodem object */
-  //       const xmodem = new Xmodem()
+    const readTimeout = setTimeout(() => {
+      hasTimedOut = true
+    }, timeout)
 
-  //       /* Create listener to on 'ready' events in xmodem and trigger readyCb */
-  //       xmodem.on('ready', (event) => readyCb(event))
+    /* While it hasn't timed out */
+    while (!hasTimedOut) {
+      /* If endLine was found */
+      if (Buffer.compare(currentBuf, endLine) == 0) {
+        /* End timeout */
+        clearTimeout(readTimeout)
 
-  //       /* Create listener to on 'status' events in xmodem and trigger readyCb */
-  //       xmodem.on('status', (event) => {
-  //         /* If event is 'send' */
-  //         if (event.action == 'send') {
-  //           /* Trigger sentCb with number of chunks sent so far */
-  //           sentCb(event.block)
-  //         }
-  //       })
+        /* End RXBuffer polling */
+        break
+      }
 
-  //       /* Create listener to on 'stop' events in xmodem */
-  //       xmodem.on('stop', async () => {
-  //         /* Delay 500 milliseconds */
-  //         await sleep(500)
+      /* Read and concatenate RXBuffer if it is available */
+      if (this.RXBuffer.available()) {
+        ret = Buffer.concat([ret, currentBuf])
 
-  //         /* Remove all listeners from xmodem */
-  //         xmodem.removeAllListeners()
+        currentBuf = this.read()
+      }
 
-  //         /* Trigger resolve function  */
-  //         success()
-  //       })
-
-  //       /* Perform xmodem send  */
-  //       xmodem.send(stream, buf)
-  //     } catch (err) {
-  //       /* Reject promisse with errors */
-  //       error(err)
-  //     }
-  //   })
-  // }
-
-  _write(
-    chunk: any,
-    encoding: BufferEncoding,
-    callback: (error?: Error | null) => void
-  ) {
-    // console.log('BLEUartStream write: ', chunk, encoding)
-    // // The underlying source only deals with strings.
-    // if (Buffer.isBuffer(chunk))
-    //   chunk = chunk.toString();
-    this.writeTo(chunk)
-    // await sleep(1000)
-    callback()
-  }
-
-  async _read(size: number) {
-    // console.log('BLEUartStream _read:', size)
-    // await sleep(1)
-    const readData = this.readTo()
-    // console.log(readData)
-    if (readData == Buffer.from([])) {
-      return
+      /* Avoid locking JavaScript runtime */
+      await sleep(1)
     }
-    // this.push(readData)
-    // this.push(Buffer.from('C'))
+
+    return ret
+  }
+
+  public async readTimeout(timeout: number = 1000): Promise<Buffer> {
+    let ret: Buffer = Buffer.alloc(0)
+
+    let hasTimedOut = false
+
+    const readTimeout = setTimeout(() => {
+      hasTimedOut = true
+    }, timeout)
+
+    /* While it hasn't timed out */
+    while (!hasTimedOut) {
+      /* Read and concatenate RXBuffer if it is available */
+      if (this.RXBuffer.available()) {
+        ret = this.read()
+        break
+      }
+
+      /* Avoid locking JavaScript runtime */
+      await sleep(1)
+    }
+
+    return ret
   }
 
   public xmodemSend2 = async (
@@ -291,6 +347,8 @@ class BLEUartStream {
         return crc
       }
 
+      const dataLength = Math.ceil(data.length / PKT_SIZE)
+
       // Send the data using the XModem protocol
       while (data.length > 0) {
         // console.log('data.length', data.length)
@@ -325,12 +383,18 @@ class BLEUartStream {
         // Send the packet and wait for an ACK
         retries = 0
         while (retries < maxRetries) {
-          console.log('writting:', pkt.toString('hex'))
-          await this.writeTo(pkt)
-          // await sleep(10)
-          const ret = this.readTo()
+          console.log(
+            'writting packet:',
+            pkt[1],
+            'of',
+            dataLength
+            // pkt.toString('hex')
+          )
+          await this.write(pkt)
+          // await sleep(1)
+          const ret = this.readAll()
           // console.log('Read:', ret.toString())
-          console.log('Read hex:', ret.toString('hex'))
+          // console.log('Read hex:', ret.toString('hex'))
           if (ret[0] === ACK) {
             break
           }
@@ -339,9 +403,9 @@ class BLEUartStream {
 
         // If we have exhausted our retries, abort the transfer
         if (retries === maxRetries) {
-          await this.writeTo(Buffer.from([CAN]))
-          await this.writeTo(Buffer.from([CAN]))
-          await this.writeTo(Buffer.from([CAN]))
+          await this.write(Buffer.from([CAN]))
+          await this.write(Buffer.from([CAN]))
+          await this.write(Buffer.from([CAN]))
           throw new Error('XModem: Too many retries')
         }
 
@@ -353,8 +417,9 @@ class BLEUartStream {
       // Send the EOT character and wait for an ACK
       retries = 0
       while (retries < maxRetries) {
-        await this.writeTo(Buffer.from([EOT]))
-        const ret = this.readTo()
+        await this.write(Buffer.from([EOT]))
+        // await sleep(1)
+        const ret = this.readAll()
         // console.log('Read:', ret.toString())
         console.log('Read hex:', ret.toString('hex'))
         if (ret[0] === ACK) {
@@ -365,13 +430,13 @@ class BLEUartStream {
 
       // If we have exhausted our retries, abort the transfer
       if (retries === maxRetries) {
-        await this.writeTo(Buffer.from([CAN]))
-        await this.writeTo(Buffer.from([CAN]))
-        await this.writeTo(Buffer.from([CAN]))
+        await this.write(Buffer.from([CAN]))
+        await this.write(Buffer.from([CAN]))
+        await this.write(Buffer.from([CAN]))
         throw new Error('XModem: Too many retries')
       }
       success()
     })
   }
 }
-export default BLEUartStream
+export default MyriotaUpdater
