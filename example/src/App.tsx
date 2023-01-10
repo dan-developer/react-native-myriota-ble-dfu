@@ -10,14 +10,6 @@ import DocumentPicker, {
 } from 'react-native-document-picker'
 import RNPickerSelect from 'react-native-picker-select'
 import * as RNFS from 'react-native-fs'
-import Xmodem from './modules/xmodem'
-
-/**
- * Sleep for ms milliseconds
- * @param ms the number of milliseconds to sleep for
- * @returns promise the will resolve in ms milliseconds
- */
-const sleep = (ms: number) => new Promise((success) => setTimeout(success, ms))
 
 const App = () => {
   const [text, setText] = useState('MYRIOTA-DFU')
@@ -109,28 +101,6 @@ const App = () => {
         ? BLE.UART_RX_UUID
         : BLE.UART_RX_UUID.toLowerCase()
 
-    // /* Create */
-    // let readData: Buffer = Buffer.from([0])
-
-    // await ble.write('U', UART_UUID, UART_RX_UUID)
-    // readData = await ble.read(UART_UUID, UART_TX_UUID)
-    // console.log('readData', readData)
-
-    // await ble.write('s', UART_UUID, UART_RX_UUID)
-    // readData = await ble.read(UART_UUID, UART_TX_UUID)
-    // console.log(readData)
-    // console.log('readData', readData)
-
-    // await myriotaUpdater.write(Buffer.from('s', 'utf-8'))
-    // await sleep(1000)
-    // readData = myriotaUpdater.readLine(Buffer.from('\r\n'))
-    // console.log(readData.toString())
-    // readData = myriotaUpdater.readLine(Buffer.from('\r\n'))
-    // console.log(readData.toString())
-
-    // readData = myriotaUpdater.readLine(Buffer.from('\r\n'))
-    // console.log(readData.toString())
-
     /* Crate Myriota DFU class */ // TODO: improve this
     const myriotaUpdater = new MyriotaUpdater(
       peripherals[0],
@@ -145,28 +115,26 @@ const App = () => {
       (error) => console.error('MyriotaUpdater: Open: error:', error)
     )
 
-    await myriotaUpdater.write(Buffer.from('U', 'utf-8'))
-    do {
-      const read = await myriotaUpdater.readUntil(1000, Buffer.from('\n'))
-      // console.log('ret1', read.toString())
-    } while (myriotaUpdater.available())
+    console.log('Checking if Myriota module is in bootloader mode...')
 
-    // await myriotaUpdater.write(Buffer.from('a4000', 'utf-8'))
-    // await myriotaUpdater.write(Buffer.from('s', 'utf-8'))
-    await myriotaUpdater.write(Buffer.from('o', 'utf-8'))
-    do {
-      const read = await myriotaUpdater.readUntil(1000, Buffer.from('\n'))
-      // console.log('ret2', read.toString())
-    } while (myriotaUpdater.available())
+    /* Check if Myriota module is in bootloader mode */
+    const bootloaderMode = await myriotaUpdater.isBootloaderMode()
 
-    // await myriotaUpdater.xmodemSend2(buf)
-    await xmodemSend(
-      myriotaUpdater,
+    /* If Myriota module is not in bootloader mode */
+    if (!bootloaderMode) {
+      /* Throw exeption */
+      throw new Error('Could not enter bootloader mode!')
+    }
+
+    console.log('Bootloader detected!')
+
+    console.log('Uploading network information')
+    await myriotaUpdater.sendNetworkInformation(
       buf,
-      (ready: any) =>
-        console.log('MyriotaUpdater: Ready to send', ready, 'blocks'),
-      (blockNumber: any) =>
-        console.log('MyriotaUpdater: Current block:', blockNumber)
+      (totalChuncks: number) =>
+        console.log('MyriotaUpdater: Ready to send', totalChuncks, 'blocks'),
+      (currentChunk: any) =>
+        console.log('MyriotaUpdater: Current block:', currentChunk)
     )
 
     await myriotaUpdater.close().then(
@@ -240,47 +208,4 @@ const App = () => {
   )
 }
 
-const xmodemSend = async (
-  mu: MyriotaUpdater,
-  data: Buffer,
-  readyCb: Function,
-  sentCb: Function
-) => {
-  return new Promise<void>(async (success, error) => {
-    try {
-      /* Create an Xmodem object */
-      const xmodem = new Xmodem()
-
-      /* Create listener to on 'ready' events in xmodem and trigger readyCb */
-      xmodem.on('ready', (event) => readyCb(event))
-
-      /* Create listener to on 'status' events in xmodem and trigger readyCb */
-      xmodem.on('status', (event) => {
-        /* If event is 'send' */
-        if (event.action == 'send') {
-          /* Trigger sentCb with number of chunks sent so far */
-          sentCb(event.block)
-        }
-      })
-
-      /* Create listener to on 'stop' events in xmodem */
-      xmodem.on('stop', async () => {
-        /* Delay 500 milliseconds */
-        await sleep(500)
-
-        /* Remove all listeners from xmodem */
-        xmodem.removeAllListeners()
-
-        /* Trigger resolve function  */
-        success()
-      })
-
-      /* Perform xmodem send  */
-      xmodem.send(mu, data)
-    } catch (err) {
-      /* Reject promisse with errors */
-      error(err)
-    }
-  })
-}
 export default App
