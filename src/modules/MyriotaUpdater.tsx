@@ -265,7 +265,7 @@ class MyriotaUpdater extends EventEmitter {
         /* Create listener to on 'status' events in xmodem and trigger readyCb */
         xmodem.on('status', (event) => {
           /* If event is 'send' */
-          if (event.action == 'send') {
+          if (event.block) {
             /* Trigger sentCb with number of chunks sent so far */
             sentCb(event.block)
           }
