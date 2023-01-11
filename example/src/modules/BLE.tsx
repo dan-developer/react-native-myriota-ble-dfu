@@ -10,16 +10,6 @@ import DeviceInfo from 'react-native-device-info'
 import BleManager, { Peripheral } from 'react-native-ble-manager'
 import { Buffer } from 'buffer'
 
-// Events
-// BleManagerStopScan
-// BleManagerDidUpdateState
-// BleManagerDiscoverPeripheral
-// BleManagerDidUpdateValueForCharacteristic
-// BleManagerConnectPeripheral
-// BleManagerDisconnectPeripheral
-// BleManagerPeripheralDidBond
-// BleManagerCentralManagerWillRestoreState [iOS only]
-// BleManagerDidUpdateNotificationStateFor [iOS only]
 interface ScanOptions {
   serviceUUIDs: string[]
   name?: string

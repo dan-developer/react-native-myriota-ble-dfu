@@ -3,7 +3,6 @@ import React, { useEffect, useState } from 'react'
 import BLE from './modules/BLE'
 import { Peripheral } from 'react-native-ble-manager'
 import { Buffer } from 'buffer'
-import MyriotaUpdater from './modules/MyriotaUpdater'
 import { Button, Platform, Text, TextInput, View } from 'react-native'
 import DocumentPicker, {
   DocumentPickerResponse,
@@ -102,7 +101,7 @@ const App = () => {
         : BLE.UART_RX_UUID.toLowerCase()
 
     /* Crate Myriota DFU class */ // TODO: improve this
-    const myriotaUpdater = new MyriotaUpdater(
+    const myriotaUpdater = new MyriotaDFU(
       peripherals[0],
       UART_UUID,
       UART_TX_UUID,

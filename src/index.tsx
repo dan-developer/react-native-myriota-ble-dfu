@@ -1,7 +1,7 @@
 import { NativeModules } from 'react-native'
-import BleManager from 'react-native-ble-manager'
+import MyriotaUpdater from './modules/MyriotaUpdater'
 
-const MyriotaDFU = async () => {}
+const MyriotaDFU = MyriotaUpdater
 
 export { MyriotaDFU }
 
