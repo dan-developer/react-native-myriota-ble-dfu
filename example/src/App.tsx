@@ -1,16 +1,15 @@
-import { MyriotaUpdater } from 'react-native-myriota-ble-dfu'
 import React, { useEffect, useState } from 'react'
-import BLE from './modules/BLE'
+import { Button, Platform, Text, View } from 'react-native'
 import { Peripheral } from 'react-native-ble-manager'
-import { Buffer } from 'buffer'
-import { Button, Platform, Text, TextInput, View } from 'react-native'
 import DocumentPicker, {
   DocumentPickerResponse,
 } from 'react-native-document-picker'
-import RNPickerSelect from 'react-native-picker-select'
 import * as RNFS from 'react-native-fs'
+import BLE from './modules/BLE'
+import { Buffer } from 'buffer'
+import { MyriotaUpdater } from 'react-native-myriota-ble-dfu'
 
-/* The defaulf SSID to connect */
+/* The defaulf SSID to connect to */
 const CONNECTION_SSID = 'MYRIOTA-DFU'
 
 /* Connection service and characteristic */

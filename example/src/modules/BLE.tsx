@@ -8,7 +8,6 @@ import {
 import { PERMISSIONS, requestMultiple } from 'react-native-permissions'
 import DeviceInfo from 'react-native-device-info'
 import BleManager, { Peripheral } from 'react-native-ble-manager'
-import { Buffer } from 'buffer'
 import { Logger } from 'react-native-myriota-ble-dfu'
 
 interface ScanOptions {
@@ -27,7 +26,7 @@ class BLE {
   constructor(setPeripherals: Dispatch<SetStateAction<Peripheral[]>>) {
     this.bleManagerEmitter = new NativeEventEmitter(NativeModules.BleManager)
     this.setPeripherals = setPeripherals
-    this.logger = new Logger(true) // TODO: add ability to change this from a .env file
+    this.logger = new Logger(false) // TODO: add ability to change this from a .env file
     this.logger.info('BLE: constructor')
   }
 
@@ -195,21 +194,6 @@ class BLE {
     })
   }
 
-  public async isConnected(): Promise<boolean> {
-    return new Promise<boolean>(async (success) => {
-      const connected = await BleManager.isPeripheralConnected(
-        this.connectedPeripheral.id,
-        []
-      )
-
-      if (!connected || this.connectedPeripheral.id == '') {
-        return success(false)
-      }
-
-      success(true)
-    })
-  }
-
   public async connect(peripheral: Peripheral): Promise<void> {
     return new Promise<void>(async (success, error) => {
       if (!peripheral.advertising.localName) {
@@ -231,11 +215,7 @@ class BLE {
       const connectSubscription = this.bleManagerEmitter.addListener(
         'BleManagerConnectPeripheral',
         async (event) => {
-          this.logger.info(
-            'BLE: connect: connected to',
-            event.peripheral,
-            event.status
-          )
+          this.logger.info('BLE: connect: connected to', event.peripheral)
           this.connectedPeripheral = peripheral
           connectSubscription.remove()
 
@@ -312,119 +292,6 @@ class BLE {
         }
       )
     })
-  }
-
-  public async write(
-    data: string,
-    serviceUUIDs: string,
-    characteristicUUID: string
-  ): Promise<void> {
-    return new Promise<void>(async (success, error) => {
-      const connected = await BleManager.isPeripheralConnected(
-        this.connectedPeripheral.id,
-        [serviceUUIDs]
-      )
-
-      if (!connected || this.connectedPeripheral.id == '') {
-        return error('Device not connected!')
-      }
-      this.logger.info('BLE: write: writting')
-
-      await BleManager.write(
-        this.connectedPeripheral.id,
-        serviceUUIDs,
-        Platform.OS !== 'android'
-          ? characteristicUUID
-          : characteristicUUID.toLowerCase(),
-        this.toBytes(data)
-        // ,247
-      ).then(
-        () => {
-          this.logger.info('BLE: write: done!')
-          success()
-        },
-        (err) => {
-          return error('Error writing to device: ' + err)
-        }
-      )
-    })
-  }
-
-  public async read(
-    serviceUUIDs: string,
-    characteristicUUID: string
-  ): Promise<any> {
-    return new Promise<any>(async (success, error) => {
-      const connected = await BleManager.isPeripheralConnected(
-        this.connectedPeripheral.id,
-        [serviceUUIDs]
-      )
-
-      if (!connected || this.connectedPeripheral.id == '') {
-        return error('Device not connected!')
-      }
-
-      this.logger.info('BLE: read: reading...')
-
-      await BleManager.read(
-        this.connectedPeripheral.id,
-        serviceUUIDs,
-        Platform.OS !== 'android'
-          ? characteristicUUID
-          : characteristicUUID.toLowerCase()
-      ).then(
-        (data) => {
-          this.logger.info('BLE: read: done!')
-          success(data)
-        },
-        (err) => {
-          return error('Error reading from device: ' + err)
-        }
-      )
-    })
-  }
-
-  public async readNotify(
-    serviceUUIDs: string,
-    characteristicUUID: string
-  ): Promise<any> {
-    return new Promise<any>(async (success, error) => {
-      const connected = await BleManager.isPeripheralConnected(
-        this.connectedPeripheral.id,
-        [serviceUUIDs]
-      )
-
-      if (!connected || this.connectedPeripheral.id == '') {
-        return error('Device not connected!')
-      }
-      this.logger.info('BLE: readNotify: reading')
-
-      const handleRX = (state: any) => {
-        this.logger.info('BLE: readNotify: handleRX:', state)
-        if (
-          Platform.OS !== 'android'
-            ? state.characteristic == characteristicUUID
-            : state.characteristic == characteristicUUID.toLowerCase()
-        ) {
-          success(state.value)
-          RXSubscription.remove()
-        }
-      }
-
-      const RXSubscription = this.bleManagerEmitter.addListener(
-        'BleManagerDidUpdateValueForCharacteristic',
-        handleRX
-      )
-    })
-  }
-
-  private toBytes(text: string): number[] {
-    const buffer = Buffer.from(text, 'utf8')
-    const result = Array(buffer.length)
-    for (let i = 0; i < buffer.length; ++i) {
-      result[i] = buffer[i]
-    }
-    return result
   }
 }
 

@@ -1,13 +1,7 @@
 import { Buffer } from 'buffer'
 
-type BufferInput = string | ArrayBuffer | Buffer
-
-interface CRCCalculator<T = BufferInput | Uint8Array> {
-  (value: T, previous?: number): number
-}
-
-const crc16xmodem: CRCCalculator<Uint8Array> = (current, previous) => {
-  let crc = typeof previous !== 'undefined' ? ~~previous : 0x0
+const crc16xmodem = (current: Buffer) => {
+  let crc = 0x0
 
   for (let index = 0; index < current.length; index++) {
     let code = (crc >>> 8) & 0xff
