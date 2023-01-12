@@ -1,3 +1,5 @@
+
+import Config from 'react-native-config'
 import EventEmitter from "events";
 import { Buffer } from "buffer";
 import crc16xmodem from "./crc16xmodem";
@@ -16,7 +18,7 @@ class Xmodem extends EventEmitter {
 
   constructor() {
     super();
-    Xmodem.logger = new Logger(false) // TODO: add ability to change this from a .env file
+    Xmodem.logger = new Logger(Config.DEBUG_XMODEM)
   }
 
   public async send(socket: MyriotaUpdater, dataBuffer: Buffer) {

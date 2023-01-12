@@ -8,6 +8,7 @@ import {
 import { PERMISSIONS, requestMultiple } from 'react-native-permissions'
 import DeviceInfo from 'react-native-device-info'
 import BleManager, { Peripheral } from 'react-native-ble-manager'
+import Config from 'react-native-config'
 import { Logger } from 'react-native-myriota-ble-dfu'
 
 interface ScanOptions {
@@ -26,7 +27,7 @@ class BLE {
   constructor(setPeripherals: Dispatch<SetStateAction<Peripheral[]>>) {
     this.bleManagerEmitter = new NativeEventEmitter(NativeModules.BleManager)
     this.setPeripherals = setPeripherals
-    this.logger = new Logger(false) // TODO: add ability to change this from a .env file
+    this.logger = new Logger(Config.DEBUG_BLE)
     this.logger.info('BLE: constructor')
   }
 
@@ -113,7 +114,7 @@ class BLE {
   public async startScan(scanOptions: ScanOptions): Promise<void> {
     return new Promise(async (success, error) => {
       if (BLE.isScanning) {
-        return error('Already scanning!')
+        error('Already scanning!')
       }
 
       this.logger.info('BLE: startScan: starting')
@@ -197,7 +198,7 @@ class BLE {
   public async connect(peripheral: Peripheral): Promise<void> {
     return new Promise<void>(async (success, error) => {
       if (!peripheral.advertising.localName) {
-        return error('Error connecting to device: invalid peripheral provided!')
+        error('Error connecting to device: invalid peripheral provided!')
       }
 
       const connected = await BleManager.isPeripheralConnected(

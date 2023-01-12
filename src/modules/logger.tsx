@@ -1,7 +1,8 @@
 class Logger {
   private enabled: boolean
-  constructor(enabled: boolean) {
-    this.enabled = enabled
+  constructor(enabled: any) {
+    this.enabled =
+      enabled != undefined && (enabled == 'true' || enabled == true)
   }
 
   log(message?: any, ...optionalParams: any[]) {

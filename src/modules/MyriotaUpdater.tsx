@@ -4,6 +4,7 @@ import {
   NativeEventEmitter,
   EmitterSubscription,
 } from 'react-native'
+import Config from 'react-native-config'
 import EventEmitter from 'events'
 import { Buffer } from 'buffer'
 import RingBuffer from './RingBuffer'
@@ -33,38 +34,67 @@ class MyriotaUpdater extends EventEmitter {
     this.RXcharacteristicUUID = RXcharacteristicUUID
     this.bleManagerEmitter = new NativeEventEmitter(NativeModules.BleManager)
     this.RXBuffer = new RingBuffer(300)
-    this.logger = new Logger(false) // TODO: add ability to change this from a .env file
+    this.logger = new Logger(Config.DEBUG_MYRIOTA_UPDATER)
   }
 
+  /**
+   * Open stream for Myriota Firmware Update
+   *
+   * @returns a promise which will resolve when stream is open or reject on error
+   */
   public open(): Promise<void> {
     return new Promise<void>((success, error) => {
-      BleManager.startNotification(
-        this.connectedPeripheral.id,
+      /*Check if device is connected */
+      BleManager.isPeripheralConnected(this.connectedPeripheral.id, [
         this.serviceUUID,
-        this.TXcharacteristicUUID
-      ).then(
-        () => {
-          this.RXSubscription = this.bleManagerEmitter.addListener(
-            'BleManagerDidUpdateValueForCharacteristic',
-            (state) => {
-              if (state.characteristic == this.TXcharacteristicUUID) {
-                this.logger.info(
-                  'MyriotaUpdater: RXSubscription:',
-                  Buffer.from(state.value).toString('hex'),
-                  Buffer.from(state.value).toString()
-                )
-                this.RXBuffer.write(Buffer.from(state.value))
-                this.emit('data', Buffer.from(state.value))
-              }
-            }
+      ]).then(
+        (isConnected: boolean) => {
+          if (!isConnected) {
+            error('Device not connected!')
+          }
+
+          /* Start RX notification from connected device */
+          BleManager.startNotification(
+            this.connectedPeripheral.id,
+            this.serviceUUID,
+            this.TXcharacteristicUUID
+          ).then(
+            () => {
+              /* Add event listener to BleManagerDidUpdateValueForCharacteristic */
+              this.RXSubscription = this.bleManagerEmitter.addListener(
+                'BleManagerDidUpdateValueForCharacteristic',
+                (state) => {
+                  /* Check if received data is meant for TXcharacteristicUUID */
+                  if (state.characteristic == this.TXcharacteristicUUID) {
+                    this.logger.info(
+                      'MyriotaUpdater: RXSubscription:',
+                      Buffer.from(state.value).toString('hex'),
+                      Buffer.from(state.value).toString()
+                    )
+                    /* Add data to RXBuffer */
+                    this.RXBuffer.write(Buffer.from(state.value))
+
+                    /* Emmit 'data' event */
+                    this.emit('data', Buffer.from(state.value))
+                  }
+                }
+              )
+
+              success()
+            },
+            (err) => error('Error starting notification for device: ' + err)
           )
-          success()
         },
-        (err: any) => error('MyriotaUpdater startNotification: ' + err)
+        (err) => error('Error checking connection status: ' + err)
       )
     })
   }
 
+  /**
+   * Close stream for Myriota Firmware Update
+   *
+   * @returns a promise which will resolve when stream is closed or reject on error
+   */
   public close(): Promise<void> {
     return new Promise<void>(async (success, error) => {
       return BleManager.stopNotification(
@@ -73,20 +103,33 @@ class MyriotaUpdater extends EventEmitter {
         this.TXcharacteristicUUID
       ).then(
         () => {
+          /* Remove event listener from BleManagerDidUpdateValueForCharacteristic */
           if (this.RXSubscription != undefined) {
             this.RXSubscription.remove()
           }
+
           success()
         },
-        (err: any) => error
+        (err) => error(err)
       )
     })
   }
 
+  /**
+   * Check the number of bytes available on stream
+   *
+   * @returns the number of bytes available to read
+   */
   public available() {
     return this.RXBuffer.available()
   }
 
+  /**
+   * Write data to the connected device
+   *
+   * @param buffer the data to be written
+   * @returns a promise which will resolve when data is written or reject on error
+   */
   public async write(buffer: Buffer): Promise<void> {
     return new Promise<void>(async (success, error) => {
       await BleManager.write(
@@ -99,32 +142,69 @@ class MyriotaUpdater extends EventEmitter {
         () => {
           success()
         },
-        (err: any) => {
-          return error(
+        (err) =>
+          error(
             'MyriotaUpdater write: error writing to ' +
               this.connectedPeripheral.id +
               ': ' +
               err
           )
-        }
       )
     })
   }
 
+  /**
+   * Reads data from stream
+   *
+   * @param numberOfBytes
+   * @returns
+   */
   public read(numberOfBytes: number): Buffer {
     return this.RXBuffer.read(numberOfBytes)
   }
 
-  public readDelimiter(delimiter: string): boolean {
-    const data = this.RXBuffer.read(this.RXBuffer.available())
+  /**
+   * Read serialPortStream until delimiter is found or time out is reached
+   *
+   * @param delimiter the delimiter to be found
+   * @param timeout the timeout in milliseconds
+   * @returns promise which will resolve with true if delimiter was found or false otherwise
+   */
+  public readDelimiter(
+    delimiter: string,
+    timeout: number = 1000
+  ): Promise<boolean> {
+    return new Promise<boolean>((success) => {
+      /* Create timeout */
+      const errorTimeout = setTimeout(() => {
+        /* Delimiter not found */
+        success(false)
+      }, timeout)
 
-    return data.includes(delimiter)
+      /* Subscribe to 'data' event */
+      this.on('data', () => {
+        /* Read all avalable data in buffer */
+        const data = this.RXBuffer.read(this.RXBuffer.available())
+
+        if (data.includes(delimiter)) {
+          this.logger.info('MyriotaUpdater: readDelimiter: delimiter found!')
+          /* Clear errorTimeout */
+          clearTimeout(errorTimeout)
+
+          /* Unsubscribe from 'data' event */
+          this.removeAllListeners('data')
+
+          /* Delimiter was succeffully found */
+          success(true)
+        }
+      })
+    })
   }
 
   /**
    * Check if Myriota module is in bootloader mode
    *
-   * @returns Promisse which will resolve with bootloader mode or reject with error
+   * @returns promise which will resolve with bootloader mode or reject with error
    */
   public async isBootloaderMode() {
     return new Promise<boolean>(async (success, error) => {
@@ -134,23 +214,19 @@ class MyriotaUpdater extends EventEmitter {
         await this.write(Buffer.from('U'))
         await this.write(Buffer.from('U'))
 
-        // /* Flush serialPortStream */
-        // this.serialPortStream.flush()
-
-        /* Look for 'Bootloader' or 'Unknown' in serialPortStream ouput */
+        /* Look for 'Bootloader' or 'Unknown' in stream ouput */
         const isBootloaderMode = await Promise.race([
           this.readDelimiter('Bootloader'),
           this.readDelimiter('Unknown'),
         ])
 
-        /* If Bootloader' or 'Unknown' was found on serialPortStream output */
+        /* If Bootloader' or 'Unknown' was found on stream output */
         if (isBootloaderMode) {
           return success(true)
         }
 
         success(false)
       } catch (err) {
-        /* Reject promisse with errors */
         error(
           'Failed entering bootloader!\nRestart Myriota module and try again'
         )
@@ -158,6 +234,14 @@ class MyriotaUpdater extends EventEmitter {
     })
   }
 
+  /**
+   * Perform upload of a Myriota system image file
+   *
+   * @param file the Myriota system image file
+   * @param readyCb callback function called when Xmodem is ready. Return number of chunks to be sent
+   * @param sentCb callback function called when Xmodem sends a chunk. Return number of chunks sent so far
+   * @returns promise which will resolve when Xmodem transfer has finished or reject with error
+   */
   public async sendSystemImage(
     file: Buffer,
     readyCb: Function,
@@ -166,6 +250,14 @@ class MyriotaUpdater extends EventEmitter {
     return this.xmodemSend(file, 'a4000', readyCb, sentCb)
   }
 
+  /**
+   * Perform upload of a Myriota user application file
+   *
+   * @param file the Myriota user application file
+   * @param readyCb callback function called when Xmodem is ready. Return number of chunks to be sent
+   * @param sentCb callback function called when Xmodem sends a chunk. Return number of chunks sent so far
+   * @returns promise which will resolve when Xmodem transfer has finished or reject with error
+   */
   public async sendUserApplication(
     file: Buffer,
     readyCb: Function,
@@ -174,6 +266,14 @@ class MyriotaUpdater extends EventEmitter {
     return this.xmodemSend(file, 's', readyCb, sentCb)
   }
 
+  /**
+   * Perform upload of a Myriota network information file
+   *
+   * @param file the Myriota network information file
+   * @param readyCb callback function called when Xmodem is ready. Return number of chunks to be sent
+   * @param sentCb callback function called when Xmodem sends a chunk. Return number of chunks sent so far
+   * @returns promise which will resolve when Xmodem transfer has finished or reject with error
+   */
   public async sendNetworkInformation(
     file: Buffer,
     readyCb: Function,
@@ -182,6 +282,45 @@ class MyriotaUpdater extends EventEmitter {
     return this.xmodemSend(file, 'o', readyCb, sentCb)
   }
 
+  /**
+   * Start Myriota application and wait until application has started or time out
+   *
+   * @param timeout the timeout to detect application started
+   * @returns promise which will resolve when application has started or reject on timeout
+   */
+  public async startApplication(timeout: number = 45000) {
+    return new Promise<void>(async (success, error) => {
+      try {
+        /* Send start application command */
+        await this.write(Buffer.from('b'))
+
+        /* Read stream until 'Starting application' if found */
+        const applicationStarted = await this.readDelimiter(
+          'Starting application',
+          timeout
+        )
+
+        if (applicationStarted) {
+          /* Application has started */
+          return success()
+        }
+
+        error(new Error('Application not started!'))
+      } catch (err) {
+        error(err)
+      }
+    })
+  }
+
+  /**
+   * Perform Xmodem send action to serialPortStream
+   *
+   * @param file the file with the data to be transfered
+   * @param command the command to be run prior to the transfer
+   * @param readyCb callback function called when Xmodem is ready. Return number of chunks to be sent
+   * @param sentCb callback function called when Xmodem sends a chunk. Return number of chunks sent so far
+   * @returns promise which will resolve when Xmodem transfer has finished or reject with error
+   */
   private xmodemSend = async (
     file: Buffer,
     command: string,

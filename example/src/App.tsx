@@ -5,9 +5,10 @@ import DocumentPicker, {
   DocumentPickerResponse,
 } from 'react-native-document-picker'
 import * as RNFS from 'react-native-fs'
+// import Config from 'react-native-config'
+import { MyriotaUpdater } from 'react-native-myriota-ble-dfu'
 import BLE from './modules/BLE'
 import { Buffer } from 'buffer'
-import { MyriotaUpdater } from 'react-native-myriota-ble-dfu'
 
 /* The defaulf SSID to connect to */
 const CONNECTION_SSID = 'MYRIOTA-DFU'
@@ -38,6 +39,7 @@ const App = () => {
   const [peripherals, setPeriperals] = useState<Peripheral[]>([])
 
   const ble = new BLE(setPeriperals) //TODO: fix this
+  let myriotaUpdater: MyriotaUpdater
 
   /**
    *  Pick a file from device storage and perform Myriota DFU
@@ -63,22 +65,19 @@ const App = () => {
     }
   }
 
+  /**
+   * Perform Myriota DFU
+   */
   const doMDFU = async () => {
     try {
+      console.log('Starting Myritoa DFU')
+
       /* Make sure file was loaded */
       if (file == undefined) {
         throw Error('Failed loading file')
       }
 
-      /* Conver contets of file to buffer */
-      const buf = await RNFS.readFile(file.uri, 'base64').then((b64string) => {
-        return Buffer.from(b64string, 'base64')
-      })
-
-      /* Start BLE manager */
-      await ble.start()
-
-      /* Perform BLE scan */
+      /* Perform BLE scan for a specific device */
       await ble.startScan({
         serviceUUIDs: [UART_UUID],
         name: CONNECTION_SSID,
@@ -87,27 +86,24 @@ const App = () => {
 
       console.log('peripherals:', peripherals)
 
-      /* Make sure device was loaded */
+      /* Make sure devices were found */
       if (peripherals[0] == undefined) {
-        throw 'Device with SSID ' + CONNECTION_SSID + ' not found!'
+        throw 'No devices found!'
       }
 
       /* Connect to device */
       await ble.connect(peripherals[0])
 
-      /* Crate Myriota DFU class */ // TODO: improve this
-      const myriotaUpdater = new MyriotaUpdater(
+      /* Crate Myriota DFU class */
+      myriotaUpdater = new MyriotaUpdater(
         peripherals[0],
         UART_UUID,
         UART_TX_UUID,
         UART_RX_UUID
       )
 
-      /* Open the Stream */
-      await myriotaUpdater.open().then(
-        () => console.log('MyriotaUpdater: Open: success'),
-        (error) => console.error('MyriotaUpdater: Open: error:', error)
-      )
+      /* Open stream */
+      await myriotaUpdater.open()
 
       console.log('Checking if Myriota module is in bootloader mode...')
 
@@ -122,23 +118,45 @@ const App = () => {
 
       console.log('Bootloader detected!')
 
+      /* Conver contets of file to buffer */
+      const fileBuffer = await RNFS.readFile(file.uri, 'base64').then(
+        (b64string: string) => {
+          return Buffer.from(b64string, 'base64')
+        }
+      )
+
+      /* Perform update for network information */
       console.log('Uploading network information')
       await myriotaUpdater.sendNetworkInformation(
-        buf,
+        fileBuffer,
         (totalChuncks: number) =>
-          console.log('MyriotaUpdater: Ready to send', totalChuncks, 'blocks'),
+          console.log('MyriotaUpdater: ready to send', totalChuncks, 'blocks'),
         (currentChunk: any) =>
-          console.log('MyriotaUpdater: Current block:', currentChunk)
+          console.log('MyriotaUpdater: current block:', currentChunk)
       )
 
-      await myriotaUpdater.close().then(
-        () => console.log('MyriotaUpdater: Close success'),
-        (error: any) => console.error('MyriotaUpdater: Close error:', error)
-      )
+      console.log('Starting application...')
 
+      /* Start application */
+      await myriotaUpdater.startApplication()
+
+      console.log('Application started!')
+
+      /* Close stream */
+      await myriotaUpdater.close()
+
+      /* Connect from device */
       await ble.disconnect()
+
+      console.log('MDFU done!')
     } catch (error) {
       console.error('MDFU:', error)
+
+      /* Close stream */
+      await myriotaUpdater.close()
+
+      /* Connect from device */
+      await ble.disconnect()
     }
   }
 
@@ -150,8 +168,17 @@ const App = () => {
 
     /* Wrap async calls in a function that is not top level */
     const moutRoutine = async () => {
-      /* Request BLE permissions */
-      await ble.requestPermissions()
+      try {
+        // console.log(Config)
+
+        /* Request BLE permissions */
+        await ble.requestPermissions()
+
+        /* Start BLE manager */
+        await ble.start()
+      } catch (error) {
+        console.error('App: Error mounting:', error)
+      }
     }
 
     /* Run unmounting rountine */
@@ -169,7 +196,7 @@ const App = () => {
           /* Disconnect from connected device */
           await ble.disconnect()
         } catch (error) {
-          console.error(error)
+          console.error('App: Error unmounting:', error)
         }
       }
 
