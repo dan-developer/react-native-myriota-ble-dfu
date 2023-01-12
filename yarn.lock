@@ -5511,10 +5511,10 @@ react-is@^16.13.1:
   resolved "https://registry.yarnpkg.com/react-is/-/react-is-16.13.1.tgz#789729a4dc36de2999dc156dd6c1d9c18cea56a4"
   integrity sha512-24e6ynE2H+OKt4kqsOvNd8kBpV65zoxbA4BVsEOB3ARVWQki/DHzaUoC5KuON/BiccDaCCTZBuOcfZs70kR8bQ==
 
-react-native-ble-manager@^8.4.4:
-  version "8.4.4"
-  resolved "https://registry.yarnpkg.com/react-native-ble-manager/-/react-native-ble-manager-8.4.4.tgz#954c7a7fa7187186d0b6dd72cfe15a7f7be6c4c0"
-  integrity sha512-C9cvP8BvpUAUU8cPuwJD/UEwIqcPqG4frUIWVKkEtBmQok3JcXedHC/po5BpHXOXKhSbLqUtqiQmDuh+FL3T/g==
+react-native-ble-manager@^8.6.0:
+  version "8.6.0"
+  resolved "https://registry.yarnpkg.com/react-native-ble-manager/-/react-native-ble-manager-8.6.0.tgz#052d0794c0ae0b049793f9e42918d34daee49dd0"
+  integrity sha512-MA2dq/sL9A8kCmMcFqo85ZqPOxt6isgAwFQBJR+dei2ty+vuP0czzW/9Y+EavuKD9Qr09TOCONw/YX8HLIgC7Q==
 
 react-native-codegen@^0.0.8:
   version "0.0.8"

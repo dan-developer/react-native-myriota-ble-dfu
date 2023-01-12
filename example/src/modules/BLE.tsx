@@ -9,6 +9,7 @@ import { PERMISSIONS, requestMultiple } from 'react-native-permissions'
 import DeviceInfo from 'react-native-device-info'
 import BleManager, { Peripheral } from 'react-native-ble-manager'
 import { Buffer } from 'buffer'
+import { Logger } from 'react-native-myriota-ble-dfu'
 
 interface ScanOptions {
   serviceUUIDs: string[]
@@ -17,18 +18,17 @@ interface ScanOptions {
 }
 
 class BLE {
-  public static UART_UUID = '6E400001-B5A3-F393-E0A9-E50E24DCCA9E'
-  public static UART_RX_UUID = '6E400002-B5A3-F393-E0A9-E50E24DCCA9E'
-  public static UART_TX_UUID = '6E400003-B5A3-F393-E0A9-E50E24DCCA9E'
   private bleManagerEmitter
   private setPeripherals: Dispatch<SetStateAction<Peripheral[]>>
   private static isScanning: boolean = false
   private connectedPeripheral: Peripheral = { id: '', rssi: 0, advertising: {} }
+  private logger: Logger
 
   constructor(setPeripherals: Dispatch<SetStateAction<Peripheral[]>>) {
     this.bleManagerEmitter = new NativeEventEmitter(NativeModules.BleManager)
     this.setPeripherals = setPeripherals
-    console.log('BLE constructor')
+    this.logger = new Logger(true) // TODO: add ability to change this from a .env file
+    this.logger.info('BLE: constructor')
   }
 
   public requestPermissions(): Promise<void> {
@@ -47,12 +47,12 @@ class BLE {
               buttonPositive: 'OK',
             }
           )
-          console.log('BLE requestPermissions:', isGranted)
+          this.logger.info('BLE: requestPermissions:', isGranted)
 
           if (isGranted === PermissionsAndroid.RESULTS.GRANTED) {
             success()
           } else {
-            error('Permission error: Permissions not granted!')
+            error('Permissions not granted!')
           }
         } else {
           const result = await requestMultiple([
@@ -68,16 +68,16 @@ class BLE {
             result['android.permission.ACCESS_FINE_LOCATION'] ===
               PermissionsAndroid.RESULTS.GRANTED
 
-          console.log('BLE requestPermissions:', isGranted)
+          this.logger.info('BLE: requestPermissions:', isGranted)
 
           if (isGranted) {
             success()
           } else {
-            error('Permission error: Permissions not granted!')
+            error('Permissions not granted!')
           }
         }
       } else {
-        console.log('BLE requestPermissions: iOS')
+        this.logger.info('BLE: requestPermissions: iOS')
         success()
       }
     })
@@ -85,7 +85,7 @@ class BLE {
 
   public start(): Promise<void> {
     return new Promise(async (success, error) => {
-      console.log('BLE start: starting')
+      this.logger.info('BLE: start: starting')
       await BleManager.start({ showAlert: false })
 
       const errorTimeout = setTimeout(() => {
@@ -93,9 +93,9 @@ class BLE {
       }, 5000)
 
       const handleUpdateState = (state: any) => {
-        console.log('BLE start: handleUpdateState', state)
+        this.logger.info('BLE: start: handleUpdateState', state)
         if (state.state == 'on') {
-          console.log('BLE start: started')
+          this.logger.info('BLE: start: started')
           clearTimeout(errorTimeout)
           success()
           stateSubscription.remove()
@@ -114,16 +114,16 @@ class BLE {
   public async startScan(scanOptions: ScanOptions): Promise<void> {
     return new Promise(async (success, error) => {
       if (BLE.isScanning) {
-        return error('Scan error: already scanning!')
+        return error('Already scanning!')
       }
 
-      console.log('BLE startScan: starting')
+      this.logger.info('BLE: startScan: starting')
       this.setPeripherals(() => [])
 
       const stopScanSubscription = this.bleManagerEmitter.addListener(
         'BleManagerStopScan',
         async () => {
-          console.log('BLE startScan: stopped')
+          this.logger.info('BLE: startScan: stopped')
           BLE.isScanning = false
           discoverSubscription.remove()
           stopScanSubscription.remove()
@@ -141,7 +141,7 @@ class BLE {
         async (peripheral: Peripheral) => {
           if (scanOptions.name != undefined) {
             if (peripheral.advertising.localName == scanOptions.name) {
-              console.log('BLE startScan: found', scanOptions.name)
+              this.logger.info('BLE: startScan: found', scanOptions.name)
 
               this.setPeripherals(() => {
                 return [peripheral]
@@ -167,10 +167,10 @@ class BLE {
         scanMode: 2,
       }).then(
         () => {
-          console.log('BLE startScan: started')
+          this.logger.info('BLE: startScan: started')
           BLE.isScanning = true
         },
-        (err) => error('BLE startScan: ' + err)
+        (err) => error('Error scanning for devices: ' + err)
       )
     })
   }
@@ -180,12 +180,12 @@ class BLE {
       if (!BLE.isScanning) {
         return success()
       }
-      console.log('BLE stopScan: stoping')
+      this.logger.info('BLE: stopScan: stoping')
 
       const stopScanSubscription = this.bleManagerEmitter.addListener(
         'BleManagerStopScan',
         async () => {
-          console.log('BLE stopScan: stopped')
+          this.logger.info('BLE: stopScan: stopped')
           stopScanSubscription.remove()
           success()
         }
@@ -213,7 +213,7 @@ class BLE {
   public async connect(peripheral: Peripheral): Promise<void> {
     return new Promise<void>(async (success, error) => {
       if (!peripheral.advertising.localName) {
-        return error('BLE Connect: invalid peripheral provided!')
+        return error('Error connecting to device: invalid peripheral provided!')
       }
 
       const connected = await BleManager.isPeripheralConnected(
@@ -222,17 +222,17 @@ class BLE {
       )
 
       if (connected || this.connectedPeripheral.id != '') {
-        console.warn('BLE Connect: already connected!')
+        this.logger.warn('BLE: connect: already connected!')
         return success()
       }
 
-      console.log('BLE Connect: connecting')
+      this.logger.info('BLE: connect: connecting...')
 
       const connectSubscription = this.bleManagerEmitter.addListener(
         'BleManagerConnectPeripheral',
         async (event) => {
-          console.log(
-            'BLE connect: connected to',
+          this.logger.info(
+            'BLE: connect: connected to',
             event.peripheral,
             event.status
           )
@@ -241,25 +241,22 @@ class BLE {
 
           await BleManager.retrieveServices(peripheral.id).then(
             (event) => {
-              console.log(
-                'BLE connect: services retrieved for',
+              this.logger.info(
+                'BLE: connect: services retrieved for',
                 event.name,
                 event.services
               )
               if (Platform.OS == 'android') {
-                console.log('Requesting MTU...')
+                this.logger.info('BLE: requesting MTU change...')
                 BleManager.requestMTU(peripheral.id, 247).then(
                   (mtu) => {
-                    console.log('MTU size changed to ' + mtu + ' bytes')
+                    this.logger.info(
+                      'BLE: MTU size changed to ' + mtu + ' bytes'
+                    )
                     success()
                   },
                   (err) => {
-                    error(
-                      'BLE connect: error changing MTU services for' +
-                        peripheral.advertising.localName +
-                        ': ' +
-                        err
-                    )
+                    error('Error changing MTU: ' + err)
                   }
                 )
               } else {
@@ -267,20 +264,9 @@ class BLE {
               }
             },
             (err) => {
-              error(
-                'BLE connect: error retrieving services for' +
-                  peripheral.advertising.localName +
-                  ': ' +
-                  err
-              )
+              error('Error retrieving services: ' + err)
             }
           )
-
-          // await BleManager.startNotification(
-          //   peripheral.id,
-          //   BLE.UART_UUID,
-          //   BLE.UART_TX_UUID.toLowerCase()
-          // ).then(success, error)
         }
       )
 
@@ -288,12 +274,7 @@ class BLE {
         () => {},
         (err) => {
           connectSubscription.remove()
-          error(
-            'BLE connect: error connecting to ' +
-              peripheral.advertising.localName +
-              ': ' +
-              err
-          )
+          error('Error connecting to device: ' + err)
         }
       )
     })
@@ -307,16 +288,19 @@ class BLE {
       )
 
       if (!connected || this.connectedPeripheral.id == '') {
-        console.warn('BLE Disconnect: already disconnected!')
+        this.logger.warn('BLE: disconnect: already disconnected!')
         return success()
       }
 
-      console.log('BLE disonnect: disconnecting', this.connectedPeripheral.id)
+      this.logger.info(
+        'BLE: disonnect: disconnecting...',
+        this.connectedPeripheral.id
+      )
 
       await BleManager.disconnect(this.connectedPeripheral.id, true).then(
         () => {
-          console.log(
-            'BLE disconnect: disconnected from ',
+          this.logger.info(
+            'BLE: disconnect: disconnected from ',
             this.connectedPeripheral.advertising.localName
           )
 
@@ -324,12 +308,7 @@ class BLE {
           success()
         },
         (err) => {
-          error(
-            'BLE disconnect: error disconnecting from ' +
-              this.connectedPeripheral.advertising.localName +
-              ': ' +
-              err
-          )
+          error('Error disconnecting from device: ' + err)
         }
       )
     })
@@ -347,9 +326,9 @@ class BLE {
       )
 
       if (!connected || this.connectedPeripheral.id == '') {
-        return error('BLE write: device not connected!')
+        return error('Device not connected!')
       }
-      console.log('BLE write: writting')
+      this.logger.info('BLE: write: writting')
 
       await BleManager.write(
         this.connectedPeripheral.id,
@@ -358,19 +337,14 @@ class BLE {
           ? characteristicUUID
           : characteristicUUID.toLowerCase(),
         this.toBytes(data)
-        // ,245
+        // ,247
       ).then(
         () => {
-          console.log('BLE write: done!')
+          this.logger.info('BLE: write: done!')
           success()
         },
         (err) => {
-          return error(
-            'BLE write: error writing to ' +
-              this.connectedPeripheral.id +
-              ': ' +
-              err
-          )
+          return error('Error writing to device: ' + err)
         }
       )
     })
@@ -387,9 +361,10 @@ class BLE {
       )
 
       if (!connected || this.connectedPeripheral.id == '') {
-        return error('BLE read: device not connected!')
+        return error('Device not connected!')
       }
-      console.log('BLE read: reading')
+
+      this.logger.info('BLE: read: reading...')
 
       await BleManager.read(
         this.connectedPeripheral.id,
@@ -399,17 +374,11 @@ class BLE {
           : characteristicUUID.toLowerCase()
       ).then(
         (data) => {
-          console.warn(data)
-          console.log('BLE read: done!')
+          this.logger.info('BLE: read: done!')
           success(data)
         },
         (err) => {
-          return error(
-            'BLE read: error reading to ' +
-              this.connectedPeripheral.id +
-              ': ' +
-              err
-          )
+          return error('Error reading from device: ' + err)
         }
       )
     })
@@ -426,12 +395,12 @@ class BLE {
       )
 
       if (!connected || this.connectedPeripheral.id == '') {
-        return error('BLE read: device not connected!')
+        return error('Device not connected!')
       }
-      console.log('BLE read: reading')
+      this.logger.info('BLE: readNotify: reading')
 
       const handleRX = (state: any) => {
-        console.log('BLE read: handleRX:', state)
+        this.logger.info('BLE: readNotify: handleRX:', state)
         if (
           Platform.OS !== 'android'
             ? state.characteristic == characteristicUUID

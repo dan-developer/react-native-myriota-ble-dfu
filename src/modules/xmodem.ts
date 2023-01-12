@@ -3,7 +3,6 @@ import { Buffer } from "buffer";
 import crc16xmodem from "./crc16xmodem";
 import MyriotaUpdater from './MyriotaUpdater'
 import Logger from "./logger";
-// import { DEBUG_XMODEM } from "@env"
 
 class Xmodem extends EventEmitter {
   static XMODEM_START_BLOCK = 1;
@@ -17,7 +16,7 @@ class Xmodem extends EventEmitter {
 
   constructor() {
     super();
-    Xmodem.logger = new Logger(false)//DEBUG_XMODEM != undefined && DEBUG_XMODEM == 'true')
+    Xmodem.logger = new Logger(false) // TODO: add ability to change this from a .env file
   }
 
   public async send(socket: MyriotaUpdater, dataBuffer: Buffer) {

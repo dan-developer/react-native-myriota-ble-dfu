@@ -1,8 +1,7 @@
 import { NativeModules } from 'react-native'
 import MyriotaUpdater from './modules/MyriotaUpdater'
+import Logger from './modules/logger'
 
-const MyriotaDFU = MyriotaUpdater
-
-export { MyriotaDFU }
+export { MyriotaUpdater, Logger }
 
 export default NativeModules.RNMyriotBLEDFU

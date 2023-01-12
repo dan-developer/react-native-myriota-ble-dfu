@@ -4,6 +4,9 @@ class Logger {
     this.enabled = enabled
   }
 
+  log(message?: any, ...optionalParams: any[]) {
+    if (this.enabled) console.log(message, ...optionalParams)
+  }
   info(message?: any, ...optionalParams: any[]) {
     if (this.enabled) console.info(message, ...optionalParams)
   }

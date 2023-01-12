@@ -8,6 +8,7 @@ import EventEmitter from 'events'
 import { Buffer } from 'buffer'
 import RingBuffer from './RingBuffer'
 import Xmodem from './xmodem'
+import Logger from './logger'
 
 /**
  * Sleep for ms milliseconds
@@ -24,6 +25,7 @@ class MyriotaUpdater extends EventEmitter {
   private RXcharacteristicUUID: string
   private RXSubscription: EmitterSubscription | undefined
   private RXBuffer: RingBuffer
+  private logger: Logger
 
   constructor(
     peripheral: Peripheral,
@@ -38,6 +40,7 @@ class MyriotaUpdater extends EventEmitter {
     this.RXcharacteristicUUID = RXcharacteristicUUID
     this.bleManagerEmitter = new NativeEventEmitter(NativeModules.BleManager)
     this.RXBuffer = new RingBuffer(300)
+    this.logger = new Logger(false) // TODO: add ability to change this from a .env file
   }
 
   public open(): Promise<void> {
@@ -52,12 +55,11 @@ class MyriotaUpdater extends EventEmitter {
             'BleManagerDidUpdateValueForCharacteristic',
             (state) => {
               if (state.characteristic == this.TXcharacteristicUUID) {
-                // console.log('RXSubscription new value:', state.value)
-                // console.log(
-                //   'RXSubscription new value Buffer:',
-                //   Buffer.from(state.value),
-                //   Buffer.from(state.value).toString()
-                // )
+                this.logger.info(
+                  'MyriotaUpdater: RXSubscription:',
+                  Buffer.from(state.value).toString('hex'),
+                  Buffer.from(state.value).toString()
+                )
                 this.RXBuffer.write(Buffer.from(state.value))
                 this.emit('data', Buffer.from(state.value))
               }
@@ -65,17 +67,13 @@ class MyriotaUpdater extends EventEmitter {
           )
           success()
         },
-        (err) => error('MyriotaUpdater startNotification: ' + err)
+        (err: any) => error('MyriotaUpdater startNotification: ' + err)
       )
     })
   }
 
-  // public clear() {
-  //   this.RXBuffer.clear()
-  // }
-
   public available() {
-    return this.RXBuffer.length
+    return this.RXBuffer.available()
   }
 
   public close(): Promise<void> {
@@ -91,7 +89,7 @@ class MyriotaUpdater extends EventEmitter {
           }
           success()
         },
-        (err) => error
+        (err: any) => error
       )
     })
   }
@@ -116,7 +114,7 @@ class MyriotaUpdater extends EventEmitter {
         () => {
           success()
         },
-        (err) => {
+        (err: any) => {
           return error(
             'MyriotaUpdater write: error writing to ' +
               this.peripheral.id +
@@ -133,7 +131,7 @@ class MyriotaUpdater extends EventEmitter {
   }
 
   public readAll(): Buffer {
-    return this.RXBuffer.read(this.RXBuffer.length)
+    return this.RXBuffer.read(this.RXBuffer.available())
   }
 
   public async readUntil(
@@ -160,7 +158,7 @@ class MyriotaUpdater extends EventEmitter {
       }
 
       /* Read and concatenate RXBuffer if it is available */
-      if (this.RXBuffer.length) {
+      if (this.RXBuffer.available()) {
         ret = Buffer.concat([ret, currentBuf])
 
         currentBuf = this.read()
@@ -185,7 +183,7 @@ class MyriotaUpdater extends EventEmitter {
     /* While it hasn't timed out */
     while (!hasTimedOut) {
       /* Read and concatenate RXBuffer if it is available */
-      if (this.RXBuffer.length) {
+      if (this.RXBuffer.available()) {
         ret = this.read()
         break
       }

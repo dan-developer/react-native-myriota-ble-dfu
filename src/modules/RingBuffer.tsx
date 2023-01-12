@@ -19,8 +19,18 @@ class RingBuffer {
     this.tail = 0
   }
 
-  public get length(): number {
+  public available(): number {
     return this.buffer.length
+  }
+
+  public clear(): void {
+    this.head = 0
+    this.tail = 0
+    this.numItems = 0
+  }
+
+  public isFull(): boolean {
+    return this.nextIndex(this.head) == this.tail
   }
 
   public read(num: number): Buffer {
@@ -48,7 +58,7 @@ class RingBuffer {
     for (let i = 0; i < num; ++i) {
       readBuff[i] = this.buffer[this.head]
       --this.numItems
-      this.head = this.incrementPtr(this.head)
+      this.head = this.nextIndex(this.head)
 
       // check if we've reached the tail
       if (this.head === this.tail) {
@@ -64,18 +74,18 @@ class RingBuffer {
       // write the data to the tail
       this.buffer[this.tail] = data[i]
 
-      this.tail = this.incrementPtr(this.tail)
+      this.tail = this.nextIndex(this.tail)
 
       // if the buffer is at capacity, move foward the head
       if (this.numItems === this.capacity) {
-        this.head = this.incrementPtr(this.head)
+        this.head = this.nextIndex(this.head)
       } else {
         ++this.numItems
       }
     }
   }
 
-  private incrementPtr(ptr: number): number {
+  private nextIndex(ptr: number): number {
     return (ptr + 1) % this.capacity
   }
 }
