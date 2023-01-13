@@ -5,7 +5,7 @@ import DocumentPicker, {
   DocumentPickerResponse,
 } from 'react-native-document-picker'
 import * as RNFS from 'react-native-fs'
-// import Config from 'react-native-config'
+import Config from 'react-native-config'
 import { MyriotaUpdater } from 'react-native-myriota-ble-dfu'
 import BLE from './modules/BLE'
 import { Buffer } from 'buffer'
@@ -169,7 +169,7 @@ const App = () => {
     /* Wrap async calls in a function that is not top level */
     const moutRoutine = async () => {
       try {
-        // console.log(Config)
+        console.log(Config)
 
         /* Request BLE permissions */
         await ble.requestPermissions()

@@ -1,4 +1,13 @@
 apply plugin: 'com.android.application'
+project.ext.envConfigFiles = [
+  productiondebug: ".env.production",
+  productionrelease: ".env.production",
+  developmentrelease: ".env.development",
+  developmentdebug: ".env.development",
+  stagingrelease: ".env.staging",
+  stagingdebug: ".env.staging"
+]
+apply from: project(':react-native-config').projectDir.getPath() + "/dotenv.gradle"
 apply plugin: 'kotlin-android'
 
 import com.android.build.OutputFile
@@ -157,6 +166,7 @@ android {
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
+            matchingFallbacks = ['debug', 'release']
             if (nativeArchitectures) {
                 ndk {
                     abiFilters nativeArchitectures.split(',')
@@ -170,6 +180,12 @@ android {
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
+    }
+    flavorDimensions "default"
+    productFlavors {
+        production {}
+        staging {}
+        development {}
     }
 
     // applicationVariants are e.g. debug, release
