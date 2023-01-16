@@ -32,6 +32,11 @@
     "prepare": "yarn compile",
     "test": "jest"
   },
+  "dependencies": {
+    "events": "^3.3.0",
+    "stream": "^0.0.2",
+    "timers": "^0.1.1"
+  },
   "devDependencies": {
     "@babel/core": "^7.16.12",
     "@babel/runtime": "^7.16.7",
@@ -43,7 +48,6 @@
     "buffer": "^6.0.3",
     "eslint": "^7.32.0",
     "eslint-plugin-simple-import-sort": "^7.0.0",
-    "events": "^3.3.0",
     "jest": "^27.4.7",
     "metro-react-native-babel-preset": "^0.67.0",
     "react": "^17.0.2",
