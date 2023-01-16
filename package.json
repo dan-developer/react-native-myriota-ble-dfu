@@ -6,12 +6,12 @@
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "author": "Robson Oliveira dos Santos <robsonos@outlook.com>",
-  "license": "MIT",
+  "license": "UNLICENSED",
+  "private": true,
   "files": [
     "android",
     "ios",
     "lib",
-    "react-native-myriota-ble-dfu.podspec",
     "!android/build",
     "!.DS_Store",
     "!.gradle",
@@ -30,8 +30,7 @@
     "compile": "rm -rf lib && tsc -p .",
     "lint": "eslint . --ext .js,.jsx,.ts,.tsx",
     "prepare": "yarn compile",
-    "test": "jest",
-    "refresh": "rm -rf node_modules example/node_modules example/ios/Pods"
+    "test": "jest"
   },
   "devDependencies": {
     "@babel/core": "^7.16.12",
