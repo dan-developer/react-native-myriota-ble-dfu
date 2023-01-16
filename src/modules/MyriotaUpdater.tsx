@@ -45,9 +45,7 @@ class MyriotaUpdater extends EventEmitter {
   public open(): Promise<void> {
     return new Promise<void>((success, error) => {
       /*Check if device is connected */
-      BleManager.isPeripheralConnected(this.connectedPeripheral.id, [
-        this.serviceUUID,
-      ]).then(
+      BleManager.isPeripheralConnected(this.connectedPeripheral.id, []).then(
         (isConnected: boolean) => {
           if (!isConnected) {
             error('Device not connected!')

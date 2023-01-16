@@ -152,8 +152,10 @@ const App = () => {
     } catch (error) {
       console.error('MDFU:', error)
 
-      /* Close stream */
-      await myriotaUpdater.close()
+      if (myriotaUpdater != undefined) {
+        /* Close stream */
+        await myriotaUpdater.close()
+      }
 
       /* Connect from device */
       await ble.disconnect()
