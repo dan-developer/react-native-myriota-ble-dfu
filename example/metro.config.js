@@ -17,7 +17,6 @@ module.exports = {
     extraNodeModules: {
       react: path.resolve(__dirname, 'node_modules/react'),
       'react-native': path.resolve(__dirname, 'node_modules/react-native'),
-      stream: path.resolve(__dirname, 'node_modules/readable-stream'),
     },
     blockList: exclusionList([
       new RegExp(`${moduleRoot}/node_modules/react/.*`),

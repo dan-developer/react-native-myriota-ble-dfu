@@ -44,7 +44,7 @@ class MyriotaUpdater extends EventEmitter {
    */
   public open(): Promise<void> {
     return new Promise<void>((success, error) => {
-      /*Check if device is connected */
+      /* Check if device is connected */
       BleManager.isPeripheralConnected(this.connectedPeripheral.id, []).then(
         (isConnected: boolean) => {
           if (!isConnected) {
@@ -204,8 +204,8 @@ class MyriotaUpdater extends EventEmitter {
    *
    * @returns promise which will resolve with bootloader mode or reject with error
    */
-  public async isBootloaderMode() {
-    return new Promise<boolean>(async (success, error) => {
+  public async isBootloaderMode(timeout: number = 1000) {
+    return new Promise<boolean>(async (success) => {
       try {
         /* Send enter bootload mode command three times */
         await this.write(Buffer.from('U'))
@@ -214,8 +214,8 @@ class MyriotaUpdater extends EventEmitter {
 
         /* Look for 'Bootloader' or 'Unknown' in stream ouput */
         const isBootloaderMode = await Promise.race([
-          this.readDelimiter('Bootloader'),
-          this.readDelimiter('Unknown'),
+          this.readDelimiter('Bootloader', timeout),
+          this.readDelimiter('Unknown', timeout),
         ])
 
         /* If Bootloader' or 'Unknown' was found on stream output */
@@ -225,9 +225,7 @@ class MyriotaUpdater extends EventEmitter {
 
         success(false)
       } catch (err) {
-        error(
-          'Failed entering bootloader!\nRestart Myriota module and try again'
-        )
+        success(false)
       }
     })
   }
