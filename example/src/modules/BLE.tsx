@@ -1,15 +1,15 @@
 import { Dispatch, SetStateAction } from 'react'
 import {
-  NativeModules,
   NativeEventEmitter,
-  Platform,
+  NativeModules,
   PermissionsAndroid,
+  Platform,
 } from 'react-native'
-import { PERMISSIONS, requestMultiple } from 'react-native-permissions'
-import DeviceInfo from 'react-native-device-info'
 import BleManager, { Peripheral } from 'react-native-ble-manager'
-import Config from 'react-native-config'
+import DeviceInfo from 'react-native-device-info'
+import Config from 'react-native-dotenv'
 import { Logger } from 'react-native-myriota-ble-dfu'
+import { PERMISSIONS, requestMultiple } from 'react-native-permissions'
 
 interface ScanOptions {
   serviceUUIDs: string[]
