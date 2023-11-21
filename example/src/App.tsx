@@ -5,7 +5,7 @@ import DocumentPicker, {
   DocumentPickerResponse,
 } from 'react-native-document-picker'
 import * as RNFS from 'react-native-fs'
-import Config from 'react-native-config'
+import Config from 'react-native-dotenv'
 import { MyriotaUpdater } from 'react-native-myriota-ble-dfu'
 import BLE from './modules/BLE'
 import { Buffer } from 'buffer'

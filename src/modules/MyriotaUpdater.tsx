@@ -4,7 +4,7 @@ import {
   NativeEventEmitter,
   EmitterSubscription,
 } from 'react-native'
-import Config from 'react-native-config'
+import Config from 'react-native-dotenv'
 import EventEmitter from 'events'
 import { Buffer } from 'buffer'
 import RingBuffer from './RingBuffer'
