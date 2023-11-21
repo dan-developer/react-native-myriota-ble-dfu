@@ -1,10 +1,10 @@
-import { Buffer } from "buffer";
-import EventEmitter from "events";
-import Config from 'react-native-dotenv'
 
+import Config from 'react-native-config'
+import EventEmitter from "events";
+import { Buffer } from "buffer";
 import crc16xmodem from "./crc16xmodem";
-import Logger from "./logger";
 import MyriotaUpdater from './MyriotaUpdater'
+import Logger from "./logger";
 
 class Xmodem extends EventEmitter {
   static XMODEM_START_BLOCK = 1;
